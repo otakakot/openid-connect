@@ -17,6 +17,8 @@ servers:
 tags:
   - name: OIDC
     description: OIDC
+  - name: IdP
+    description: IdP
 paths:
   /.well-known/openid-configuration:
     get:
@@ -26,12 +28,150 @@ paths:
       description: OpenID Provider Configuration
       operationId: openIDConfiguration
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OpenIDConfigurationResponseSchema'
+                $ref: "#/components/schemas/OpenIDConfigurationResponseSchema"
+        default:
+          description: Internal Server Error
+  /authorize:
+    get:
+      tags:
+        - OIDC
+      summary: Authorization Endpoint
+      description: |
+        Authorization Endpoint
+        ref: https://openid-foundation-japan.github.io/rfc6749.ja.html#code-authz-req
+      operationId: authorize
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          description: response_type
+          schema:
+            type: string
+            enum:
+              - code
+        - name: client_id
+          in: query
+          required: true
+          description: client_id
+          schema:
+            type: string
+            format: uri
+            example: http://localhost:8080
+        - name: redirect_uri
+          in: query
+          required: false
+          description: http://localhost:8080/callback
+          schema:
+            type: string
+            format: uri
+            example: http://localhost:8080/callback
+        - name: scope
+          in: query
+          required: false
+          description: openid
+          schema:
+            type: string
+            enum:
+              - openid
+        - name: state
+          in: query
+          required: false
+          description: state
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+                example: http://localhost:8080/callback
+        default:
+          description: Internal Server Error
+  /login:
+    get:
+      tags:
+        - IdP
+      summary: Login Veiw
+      description: Login View
+      operationId: loginView
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: id
+          schema:
+            type: string
+            example: xxxxxxxxxx
+      responses:
+        "200":
+          description: OK
+          content:
+            text/html:
+              schema:
+                type: string
+        default:
+          description: Internal Server Error
+    post:
+      tags:
+        - IdP
+      summary: Login
+      description: Login
+      operationId: login
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: xxxxxxxxxx
+                password:
+                  type: string
+                  example: xxxxxxxxxx
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+                example: http://localhost:8787/authorize?response_type=code&client_id=http://localhost:8080&redirect_uri=http://localhost:8080/callback&scope=openid&state=xxxxxxxxxx
+        default:
+          description: Internal Server Error
+  /callback:
+    get:
+      tags:
+        - IdP
+      summary: Callback
+      description: Callback
+      operationId: callback
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: id
+          schema:
+            type: string
+            example: xxxxxxxxxx
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+                example: http://localhost:8080/callback
         default:
           description: Internal Server Error
 components:
@@ -46,34 +186,34 @@ components:
       properties:
         issuer:
           type: string
-          description: http://localhost:8787/op
+          description: http://localhost:8787
           format: uri
-          example: http://localhost:8787/op
+          example: http://localhost:8787
         authorization_endpoint:
           type: string
-          description: http://localhost:8787/op/authorize
+          description: http://localhost:8787/authorize
           format: uri
-          example: http://localhost:8787/op/authorize
+          example: http://localhost:8787/authorize
         token_endpoint:
           type: string
-          description: http://localhost:8787/op/token
+          description: http://localhost:8787/token
           format: uri
-          example: http://localhost:8787/op/token
+          example: http://localhost:8787/token
         userinfo_endpoint:
           type: string
-          description: http://localhost:8787/op/userinfo
+          description: http://localhost:8787/userinfo
           format: uri
-          example: http://localhost:8787/op/userinfo
+          example: http://localhost:8787/userinfo
         jwks_uri:
           type: string
-          description: http://localhost:8787/op/certs
+          description: http://localhost:8787/certs
           format: uri
-          example: http://localhost:8787/op/certs
+          example: http://localhost:8787/certs
         revocation_endpoint:
           type: string
-          description: http://localhost:8787/op/revoke
+          description: http://localhost:8787/revoke
           format: uri
-          example: http://localhost:8787/op/revoke
+          example: http://localhost:8787/revoke
       required:
         - issuer
         - authorization_endpoint
