@@ -95,6 +95,40 @@ paths:
                 example: http://localhost:8080/callback
         default:
           description: Internal Server Error
+  /token:
+    post:
+      tags:
+        - OIDC
+      summary: Token Endpoint
+      description: |
+        Token Endpoint
+        ref: https://openid-foundation-japan.github.io/rfc6749.ja.html#token-req
+        ref: https://openid-foundation-japan.github.io/openid-connect-core-1_0.ja.html#TokenRequest
+      operationId: token
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRequestSchema'
+      responses:
+        '200':
+          description: OK
+          headers:
+            Cache-Control: 
+              schema:
+                type: string
+                example: no-store
+            Pragma:
+              schema:
+                type: string
+                example: no-cache
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponseSchema'
+        default:
+          description: Internal Server Error
   /login:
     get:
       tags:
@@ -221,3 +255,84 @@ components:
         - userinfo_endpoint
         - jwks_uri
         - revocation_endpoint
+    TokenRequestSchema:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - authorization_code
+            - refresh_token
+          description: grant_type
+          example: authorization_code
+        code:
+          type: string
+          description: code
+          example: xxxxxxxxxxxxxxx
+        redirect_uri:
+          type: string
+          description: http://localhost:8080/rp/callback
+          format: uri
+          example: http://localhost:8080/rp/callback
+        refresh_token:
+          type: string
+          description: refresh_token
+          example: xxxxxxxx
+        client_id:
+          type: string
+          description: client_id
+          example: client_id
+        client_secret:
+          type: string
+          description: client_secret
+          example: client_secret
+        scope:
+          type: string
+          example: openid profile email
+        code_verifier:
+          type: string
+          description: code_verifier
+          example: code_verifier
+      required:
+        - grant_type
+        - code
+        - redirect_uri
+    TokenResponseSchema:
+      type: object
+      description: https://openid-foundation-japan.github.io/openid-connect-core-1_0.ja.html#TokenResponse
+      properties:
+        access_token:
+          type: string
+          description: access_token
+          example: access_token
+        token_type:
+          type: string
+          description: token_type
+          example: token_type
+        refresh_token:
+          type: string
+          description: refresh_token
+          example: refresh_token
+        expires_in:
+          type: integer
+          description: expires_in
+          example: 3600
+        id_token:
+          type: string
+          description: id_token
+          example: id_token
+        scope:
+          type: array
+          description: scope
+          items:
+            type: string
+            enum:
+              - openid
+              - profile
+              - email
+      required:
+        - access_token
+        - token_type
+        - refresh_token
+        - expires_in
+        - id_token

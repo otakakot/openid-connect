@@ -28,6 +28,8 @@ func main() {
 
 	http.HandleFunc("/callback", Callback)
 
+	http.HandleFunc("/token", Token)
+
 	workers.Serve(nil) // use http.DefaultServeMux
 }
 
@@ -37,13 +39,15 @@ func OpenIDConfiguration(
 ) {
 	bt := bytes.Buffer{}
 
+	issuer := req.URL.Scheme + "://" + req.Host
+
 	conf := api.OpenIDConfigurationResponseSchema{
-		AuthorizationEndpoint: "dummy",
-		Issuer:                "dummy",
-		JwksUri:               "dummy",
-		RevocationEndpoint:    "dummy",
-		TokenEndpoint:         "dummy",
-		UserinfoEndpoint:      "dummy",
+		Issuer:                issuer,
+		AuthorizationEndpoint: issuer + "/authorize",
+		JwksUri:               issuer + "/certs",
+		RevocationEndpoint:    issuer + "/revoke",
+		TokenEndpoint:         issuer + "/token",
+		UserinfoEndpoint:      issuer + "/userinfo",
 	}
 
 	if err := json.NewEncoder(&bt).Encode(conf); err != nil {
@@ -107,11 +111,11 @@ func Authorize(
 	// TODO: validate state
 
 	ss := Session{
-		ResponseType: "rt",
-		ClientID:     "cid",
-		RedirectURI:  "https://example.com",
-		Scope:        "sc",
-		State:        "st",
+		ResponseType: rt,
+		ClientID:     cid,
+		RedirectURI:  red,
+		Scope:        sc,
+		State:        st,
 	}
 
 	bt := bytes.Buffer{}
@@ -278,5 +282,64 @@ func Callback(
 
 	http.SetCookie(rw, &cookie)
 
-	http.Redirect(rw, req, ss.RedirectURI, http.StatusFound)
+	buf := bytes.Buffer{}
+
+	buf.WriteString(ss.RedirectURI)
+
+	values := url.Values{
+		"code":  {GenerateID(15)},
+		"state": {ss.State},
+	}
+
+	buf.WriteByte('?')
+
+	buf.WriteString(values.Encode())
+
+	http.Redirect(rw, req, buf.String(), http.StatusFound)
+}
+
+func Token(
+	rw http.ResponseWriter,
+	req *http.Request,
+) {
+	switch req.FormValue("grant_type") {
+	case string(api.AuthorizationCode):
+		code := req.FormValue("code")
+
+		slog.Info(code)
+
+		red := req.FormValue("redirect_uri")
+
+		slog.Info(red)
+
+		cid := req.FormValue("client_id")
+
+		slog.Info(cid)
+
+		csec := req.FormValue("client_secret")
+
+		slog.Info(csec)
+
+		scope := req.FormValue("scope")
+
+		slog.Info(scope)
+
+		res := api.TokenResponseSchema{}
+
+		bt := bytes.Buffer{}
+
+		if err := json.NewEncoder(&bt).Encode(res); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		rw.Write(bt.Bytes())
+	case string(api.RefreshToken):
+		panic("Not Implemented")
+	default:
+		http.Error(rw, "Unsupported grant_type", http.StatusBadRequest)
+
+		return
+	}
 }
