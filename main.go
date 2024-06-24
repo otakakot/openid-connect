@@ -59,7 +59,11 @@ func OpenIDConfiguration(
 	rw.Write(bt.Bytes())
 }
 
-const namespace = "openid-connect"
+const (
+	sessionKVNS = "openid-connect-session"
+	codeKVNS    = "openid-connect-code"
+	userKVNS    = "openid-connect-user"
+)
 
 type Session struct {
 	ResponseType string
@@ -73,7 +77,7 @@ func Authorize(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	kv, err := cloudflare.NewKVNamespace(namespace)
+	sessionKV, err := cloudflare.NewKVNamespace(sessionKVNS)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
@@ -110,7 +114,7 @@ func Authorize(
 
 	// TODO: validate state
 
-	ss := Session{
+	session := Session{
 		ResponseType: rt,
 		ClientID:     cid,
 		RedirectURI:  red,
@@ -118,35 +122,37 @@ func Authorize(
 		State:        st,
 	}
 
-	bt := bytes.Buffer{}
+	sessionBuf := bytes.Buffer{}
 
-	if err := json.NewEncoder(&bt).Encode(ss); err != nil {
+	if err := json.NewEncoder(&sessionBuf).Encode(session); err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	buf := bytes.Buffer{}
-
-	buf.WriteString("/login")
+	slog.Info(fmt.Sprintf("session: %+v", session))
 
 	id := GenerateID(10)
 
-	if err := kv.PutString(id, base64.StdEncoding.EncodeToString(bt.Bytes()), nil); err != nil {
+	if err := sessionKV.PutString(id, base64.StdEncoding.EncodeToString(sessionBuf.Bytes()), nil); err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
+
+	redirectBuf := bytes.Buffer{}
+
+	redirectBuf.WriteString("/login")
 
 	values := url.Values{
 		"id": {id},
 	}
 
-	buf.WriteByte('?')
+	redirectBuf.WriteByte('?')
 
-	buf.WriteString(values.Encode())
+	redirectBuf.WriteString(values.Encode())
 
-	redirect, _ := url.ParseRequestURI(buf.String())
+	redirect, _ := url.ParseRequestURI(redirectBuf.String())
 
 	http.Redirect(rw, req, redirect.String(), http.StatusFound)
 }
@@ -162,6 +168,11 @@ func GenerateID(length int) string {
 }
 
 const session_key = "__session__"
+
+type User struct {
+	ID    string
+	Email string
+}
 
 func Login(
 	rw http.ResponseWriter,
@@ -183,6 +194,13 @@ func Login(
 
 		return
 	case http.MethodPost:
+		userKV, err := cloudflare.NewKVNamespace(userKVNS)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
 		sid, err := req.Cookie(session_key)
 		if err != nil {
 			// TODO: redirect
@@ -193,9 +211,34 @@ func Login(
 
 		slog.Info(sid.Value)
 
-		slog.Info(req.FormValue("email"))
+		email := req.FormValue("email")
 
-		slog.Info(req.FormValue("password"))
+		pass := req.FormValue("password")
+
+		slog.Info(email)
+
+		slog.Info(pass)
+
+		// TODO: validate email and password
+
+		user := User{
+			ID:    GenerateID(20),
+			Email: req.FormValue("email"),
+		}
+
+		userBuf := bytes.Buffer{}
+
+		if err := json.NewEncoder(&userBuf).Encode(user); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		if err := userKV.PutString(sid.Value, base64.StdEncoding.EncodeToString(userBuf.Bytes()), nil); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
 
 		http.Redirect(rw, req, "/callback", http.StatusFound)
 	default:
@@ -232,8 +275,31 @@ func Callback(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	kv, err := cloudflare.NewKVNamespace(namespace)
+	sessionKV, err := cloudflare.NewKVNamespace(sessionKVNS)
 	if err != nil {
+		slog.Error("error creating sessionKV namespace")
+		slog.Error(err.Error())
+
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	userKV, err := cloudflare.NewKVNamespace(userKVNS)
+	if err != nil {
+		slog.Error("error creating userKV namespace")
+		slog.Error(err.Error())
+
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	codeKV, err := cloudflare.NewKVNamespace(codeKVNS)
+	if err != nil {
+		slog.Error("error creating codeKV namespace")
+		slog.Error(err.Error())
+
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
@@ -247,26 +313,53 @@ func Callback(
 		return
 	}
 
-	state, err := kv.GetString(sid.Value, nil)
+	sessionStr, err := sessionKV.GetString(sid.Value, nil)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusUnauthorized)
 
 		return
 	}
 
-	if err := kv.Delete(sid.Value); err != nil {
+	if err := sessionKV.Delete(sid.Value); err != nil {
+		slog.Error("error deleting session")
+		slog.Error(err.Error())
+
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	slog.Info(state)
+	sessionBt, _ := base64.StdEncoding.DecodeString(sessionStr)
 
-	bt, _ := base64.StdEncoding.DecodeString(state)
+	session := Session{}
 
-	ss := Session{}
+	if err := json.NewDecoder(bytes.NewReader(sessionBt)).Decode(&session); err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
-	if err := json.NewDecoder(bytes.NewReader(bt)).Decode(&ss); err != nil {
+		return
+	}
+
+	slog.Info(fmt.Sprintf("session: %+v", session))
+
+	userStr, err := userKV.GetString(sid.Value, nil)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusUnauthorized)
+
+		return
+	}
+
+	if err := userKV.Delete(sid.Value); err != nil {
+		slog.Error("error deleting user")
+		slog.Error(err.Error())
+
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	code := GenerateID(15)
+
+	if err := codeKV.PutString(code, userStr, nil); err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
@@ -278,24 +371,22 @@ func Callback(
 		MaxAge: -1,
 	}
 
-	slog.Info(fmt.Sprintf("session: %+v", ss))
-
 	http.SetCookie(rw, &cookie)
 
-	buf := bytes.Buffer{}
+	redirectBuf := bytes.Buffer{}
 
-	buf.WriteString(ss.RedirectURI)
+	redirectBuf.WriteString(session.RedirectURI)
 
 	values := url.Values{
-		"code":  {GenerateID(15)},
-		"state": {ss.State},
+		"code":  {code},
+		"state": {session.State},
 	}
 
-	buf.WriteByte('?')
+	redirectBuf.WriteByte('?')
 
-	buf.WriteString(values.Encode())
+	redirectBuf.WriteString(values.Encode())
 
-	http.Redirect(rw, req, buf.String(), http.StatusFound)
+	http.Redirect(rw, req, redirectBuf.String(), http.StatusFound)
 }
 
 func Token(
@@ -304,9 +395,41 @@ func Token(
 ) {
 	switch req.FormValue("grant_type") {
 	case string(api.AuthorizationCode):
+		codeKV, err := cloudflare.NewKVNamespace(codeKVNS)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
 		code := req.FormValue("code")
 
 		slog.Info(code)
+
+		userStr, err := codeKV.GetString(code, nil)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusUnauthorized)
+
+			return
+		}
+
+		userBt, _ := base64.StdEncoding.DecodeString(userStr)
+
+		user := User{}
+
+		if err := json.NewDecoder(bytes.NewReader(userBt)).Decode(&user); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		slog.Info(fmt.Sprintf("user: %+v", user))
+
+		// TODO: generate access_token
+
+		// TODO: generate refresh_token
+
+		// TODO: generate id_token
 
 		red := req.FormValue("redirect_uri")
 
@@ -324,7 +447,14 @@ func Token(
 
 		slog.Info(scope)
 
-		res := api.TokenResponseSchema{}
+		res := api.TokenResponseSchema{
+			AccessToken:  "",
+			ExpiresIn:    0,
+			IdToken:      "",
+			RefreshToken: "",
+			Scope:        &[]api.TokenResponseSchemaScope{},
+			TokenType:    "",
+		}
 
 		bt := bytes.Buffer{}
 

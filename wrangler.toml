@@ -3,8 +3,16 @@ main = "./build/worker.mjs"
 compatibility_date = "2024-04-15"
 
 [[kv_namespaces]]
-binding = "openid-connect"
+binding = "openid-connect-session"
 id = "4108843e6d19454eafc175b58aae9a49"
+
+[[kv_namespaces]]
+binding = "openid-connect-code"
+id = "4108843e6d19454eafc175b58aae9a48"
+
+[[kv_namespaces]]
+binding = "openid-connect-user"
+id = "4108843e6d19454eafc175b58aae9a47"
 
 [build]
 command = "make build"
