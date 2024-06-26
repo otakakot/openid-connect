@@ -321,15 +321,6 @@ components:
           type: string
           description: id_token
           example: id_token
-        scope:
-          type: array
-          description: scope
-          items:
-            type: string
-            enum:
-              - openid
-              - profile
-              - email
       required:
         - access_token
         - token_type

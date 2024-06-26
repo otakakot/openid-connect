@@ -9,13 +9,6 @@ const (
 	RefreshToken      TokenRequestSchemaGrantType = "refresh_token"
 )
 
-// Defines values for TokenResponseSchemaScope.
-const (
-	TokenResponseSchemaScopeEmail   TokenResponseSchemaScope = "email"
-	TokenResponseSchemaScopeOpenid  TokenResponseSchemaScope = "openid"
-	TokenResponseSchemaScopeProfile TokenResponseSchemaScope = "profile"
-)
-
 // Defines values for AuthorizeParamsResponseType.
 const (
 	Code AuthorizeParamsResponseType = "code"
@@ -23,7 +16,7 @@ const (
 
 // Defines values for AuthorizeParamsScope.
 const (
-	AuthorizeParamsScopeOpenid AuthorizeParamsScope = "openid"
+	Openid AuthorizeParamsScope = "openid"
 )
 
 // OpenIDConfigurationResponseSchema defines model for OpenIDConfigurationResponseSchema.
@@ -89,15 +82,9 @@ type TokenResponseSchema struct {
 	// RefreshToken refresh_token
 	RefreshToken string `json:"refresh_token"`
 
-	// Scope scope
-	Scope *[]TokenResponseSchemaScope `json:"scope,omitempty"`
-
 	// TokenType token_type
 	TokenType string `json:"token_type"`
 }
-
-// TokenResponseSchemaScope defines model for TokenResponseSchema.Scope.
-type TokenResponseSchemaScope string
 
 // AuthorizeParams defines parameters for Authorize.
 type AuthorizeParams struct {

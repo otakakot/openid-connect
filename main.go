@@ -16,6 +16,7 @@ import (
 	"github.com/syumai/workers"
 	"github.com/syumai/workers/cloudflare"
 
+	"github.com/otakakot/openid-connect/internal/token"
 	"github.com/otakakot/openid-connect/pkg/api"
 )
 
@@ -447,13 +448,24 @@ func Token(
 
 		slog.Info(scope)
 
+		// FIXME
+		sign := "secret"
+
+		iss := req.URL.Scheme + "://" + req.Host
+
+		at := token.GenerateAccessToken(iss, user.ID)
+
+		it := token.GenerateIDToken(iss, user.ID, cid, "")
+
+		// FIXME
+		rt := "refresh_token"
+
 		res := api.TokenResponseSchema{
-			AccessToken:  "",
-			ExpiresIn:    0,
-			IdToken:      "",
-			RefreshToken: "",
-			Scope:        &[]api.TokenResponseSchemaScope{},
-			TokenType:    "",
+			AccessToken:  at.JWT(sign),
+			ExpiresIn:    3600,
+			IdToken:      it.JWT(sign),
+			RefreshToken: rt,
+			TokenType:    "Bearer",
 		}
 
 		bt := bytes.Buffer{}
