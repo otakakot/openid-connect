@@ -110,12 +110,12 @@ paths:
         content:
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/TokenRequestSchema'
+              $ref: "#/components/schemas/TokenRequestSchema"
       responses:
-        '200':
+        "200":
           description: OK
           headers:
-            Cache-Control: 
+            Cache-Control:
               schema:
                 type: string
                 example: no-store
@@ -126,7 +126,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TokenResponseSchema'
+                $ref: "#/components/schemas/TokenResponseSchema"
         default:
           description: Internal Server Error
   /certs:
