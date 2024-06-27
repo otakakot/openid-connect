@@ -426,12 +426,6 @@ func Token(
 
 		slog.Info(fmt.Sprintf("user: %+v", user))
 
-		// TODO: generate access_token
-
-		// TODO: generate refresh_token
-
-		// TODO: generate id_token
-
 		red := req.FormValue("redirect_uri")
 
 		slog.Info(red)
@@ -457,13 +451,15 @@ func Token(
 
 		it := token.GenerateIDToken(iss, user.ID, cid, "")
 
-		// FIXME
+		// FIXME generate refresh token
 		rt := "refresh_token"
+
+		key := token.GenerateSignKey()
 
 		res := api.TokenResponseSchema{
 			AccessToken:  at.JWT(sign),
 			ExpiresIn:    3600,
-			IdToken:      it.JWT(sign),
+			IdToken:      it.JWT(key),
 			RefreshToken: rt,
 			TokenType:    "Bearer",
 		}

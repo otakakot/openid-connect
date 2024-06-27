@@ -1,6 +1,10 @@
 package token
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/base64"
+	"encoding/binary"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -44,6 +48,57 @@ func (at AccessToken) JWT(
 	return str
 }
 
+type SignKey struct {
+	ID  string
+	Key *rsa.PrivateKey
+}
+
+func GenerateSignKey() SignKey {
+	reader := rand.Reader
+
+	bitSize := 2048
+
+	key, _ := rsa.GenerateKey(reader, bitSize)
+
+	return SignKey{
+		ID:  "id",
+		Key: key,
+	}
+}
+
+type Cert struct {
+	KID string `json:"kid"`
+	KTY string `json:"kty"`
+	Use string `json:"use"`
+	Alg string `json:"alg"`
+	N   string `json:"n"`
+	E   string `json:"e"`
+}
+
+func (sk SignKey) Cert() Cert {
+	data := make([]byte, 8)
+
+	binary.BigEndian.PutUint64(data, uint64(sk.Key.PublicKey.E))
+
+	i := 0
+	for ; i < len(data); i++ {
+		if data[i] != 0x0 {
+			break
+		}
+	}
+
+	e := base64.RawURLEncoding.EncodeToString(data[i:])
+
+	return Cert{
+		KID: sk.ID,
+		KTY: "RSA",
+		Use: "sig",
+		Alg: "RS256",
+		N:   base64.RawURLEncoding.EncodeToString(sk.Key.PublicKey.N.Bytes()),
+		E:   e,
+	}
+}
+
 type IDToken struct {
 	Iss string `json:"iss"`
 	Sub string `json:"sub"`
@@ -70,7 +125,7 @@ func GenerateIDToken(
 }
 
 func (it IDToken) JWT(
-	sign string,
+	sign SignKey,
 ) string {
 	claims := jwt.MapClaims{
 		"iss": it.Iss,
@@ -80,10 +135,11 @@ func (it IDToken) JWT(
 		"iat": it.Iat,
 	}
 
-	// TODO: RS256
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
-	str, _ := token.SignedString([]byte(""))
+	token.Header["kid"] = sign.ID
+
+	str, _ := token.SignedString(sign.Key)
 
 	return str
 }
