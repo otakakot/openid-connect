@@ -21,7 +21,7 @@ const (
 
 // CertsResponseSchema defines model for CertsResponseSchema.
 type CertsResponseSchema struct {
-	Keys *[]JWKSet `json:"keys,omitempty"`
+	Keys []JWKSet `json:"keys"`
 }
 
 // JWKSet defines model for JWKSet.

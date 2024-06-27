@@ -493,7 +493,7 @@ func Certs(
 	key := token.GenerateSignKey()
 
 	res := api.CertsResponseSchema{
-		Keys: &[]api.JWKSet{
+		Keys: []api.JWKSet{
 			{
 				Alg: key.Cert().Alg,
 				E:   key.Cert().E,

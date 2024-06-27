@@ -378,3 +378,5 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/JWKSet"
+      required:
+        - keys
