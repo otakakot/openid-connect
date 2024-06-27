@@ -31,6 +31,8 @@ func main() {
 
 	http.HandleFunc("/token", Token)
 
+	http.HandleFunc("/certs", Certs)
+
 	workers.Serve(nil) // use http.DefaultServeMux
 }
 
@@ -454,6 +456,7 @@ func Token(
 		// FIXME generate refresh token
 		rt := "refresh_token"
 
+		// FIXME
 		key := token.GenerateSignKey()
 
 		res := api.TokenResponseSchema{
@@ -464,15 +467,15 @@ func Token(
 			TokenType:    "Bearer",
 		}
 
-		bt := bytes.Buffer{}
+		buf := bytes.Buffer{}
 
-		if err := json.NewEncoder(&bt).Encode(res); err != nil {
+		if err := json.NewEncoder(&buf).Encode(res); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
 
-		rw.Write(bt.Bytes())
+		rw.Write(buf.Bytes())
 	case string(api.RefreshToken):
 		panic("Not Implemented")
 	default:
@@ -480,4 +483,35 @@ func Token(
 
 		return
 	}
+}
+
+func Certs(
+	rw http.ResponseWriter,
+	req *http.Request,
+) {
+	// FIXME:
+	key := token.GenerateSignKey()
+
+	res := api.CertsResponseSchema{
+		Keys: &[]api.JWKSet{
+			{
+				Alg: key.Cert().Alg,
+				E:   key.Cert().E,
+				Kid: key.Cert().KID,
+				Kty: key.Cert().E,
+				N:   key.Cert().N,
+				Use: key.Cert().Use,
+			},
+		},
+	}
+
+	buf := bytes.Buffer{}
+
+	if err := json.NewEncoder(&buf).Encode(res); err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	rw.Write(buf.Bytes())
 }

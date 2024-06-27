@@ -19,6 +19,21 @@ const (
 	Openid AuthorizeParamsScope = "openid"
 )
 
+// CertsResponseSchema defines model for CertsResponseSchema.
+type CertsResponseSchema struct {
+	Keys *[]JWKSet `json:"keys,omitempty"`
+}
+
+// JWKSet defines model for JWKSet.
+type JWKSet struct {
+	Alg string `json:"alg"`
+	E   string `json:"e"`
+	Kid string `json:"kid"`
+	Kty string `json:"kty"`
+	N   string `json:"n"`
+	Use string `json:"use"`
+}
+
 // OpenIDConfigurationResponseSchema defines model for OpenIDConfigurationResponseSchema.
 type OpenIDConfigurationResponseSchema struct {
 	// AuthorizationEndpoint http://localhost:8787/authorize

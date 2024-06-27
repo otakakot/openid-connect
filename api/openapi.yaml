@@ -129,6 +129,22 @@ paths:
                 $ref: '#/components/schemas/TokenResponseSchema'
         default:
           description: Internal Server Error
+  /certs:
+    get:
+      tags:
+        - OIDC
+      summary: JWK Set
+      description: JWK Set
+      operationId: jwks
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertsResponseSchema"
+        default:
+          description: Internal Server Error
   /login:
     get:
       tags:
@@ -327,3 +343,38 @@ components:
         - refresh_token
         - expires_in
         - id_token
+    JWKSet:
+      type: object
+      properties:
+        kid:
+          type: string
+          example: xxxxxxxxxx
+        kty:
+          type: string
+          example: RSA
+        use:
+          type: string
+          example: sig
+        alg:
+          type: string
+          example: RS256
+        n:
+          type: string
+          example: xxxxxxxxxx
+        e:
+          type: string
+          example: xxxxxxxxxx
+      required:
+        - kid
+        - kty
+        - use
+        - alg
+        - n
+        - e
+    CertsResponseSchema:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/JWKSet"
