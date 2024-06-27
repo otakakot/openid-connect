@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/syumai/workers"
 	"github.com/syumai/workers/cloudflare"
@@ -30,6 +31,8 @@ func main() {
 	http.HandleFunc("/callback", Callback)
 
 	http.HandleFunc("/token", Token)
+
+	http.HandleFunc("/userinfo", UserInfo)
 
 	http.HandleFunc("/certs", Certs)
 
@@ -483,6 +486,44 @@ func Token(
 
 		return
 	}
+}
+
+func UserInfo(
+	rw http.ResponseWriter,
+	req *http.Request,
+) {
+	bearer := req.Header.Get("Authorization")
+
+	tokens := strings.Split(bearer, " ")
+
+	if len(tokens) != 2 {
+		http.Error(rw, "Invalid Authorization header", http.StatusUnauthorized)
+
+		return
+	}
+
+	if tokens[0] != "Bearer" {
+		http.Error(rw, "Invalid Authorization header", http.StatusUnauthorized)
+
+		return
+	}
+
+	// FIXME: validate token
+
+	res := api.UserInfoResponseSchema{
+		Email: "",
+		Sub:   "sub",
+	}
+
+	buf := bytes.Buffer{}
+
+	if err := json.NewEncoder(&buf).Encode(res); err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	rw.Write(buf.Bytes())
 }
 
 func Certs(

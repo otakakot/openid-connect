@@ -129,6 +129,26 @@ paths:
                 $ref: "#/components/schemas/TokenResponseSchema"
         default:
           description: Internal Server Error
+  /userinfo:
+    get:
+      tags:
+        - OIDC
+      summary: UserInfo Endpoint
+      description: UserInfo Endpoint
+      operationId: userinfo
+      security:
+        - Bearer: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfoResponseSchema"
+        "401":
+          description: Unauthorized
+        default:
+          description: Internal Server Error
   /certs:
     get:
       tags:
@@ -271,6 +291,18 @@ components:
         - userinfo_endpoint
         - jwks_uri
         - revocation_endpoint
+    UserInfoResponseSchema:
+      type: object
+      properties:
+        sub:
+          type: string
+          example: xxxxxxxxxx
+        email:
+          type: string
+          example: xxxxxxxxxx
+      required:
+        - sub
+        - email
     TokenRequestSchema:
       type: object
       properties:
