@@ -93,7 +93,7 @@ func Authorize(
 
 	rt := req.URL.Query().Get("response_type")
 
-	slog.Info(rt)
+	// slog.Info(rt)
 
 	// TODO: validate response_type
 
@@ -123,19 +123,19 @@ func Authorize(
 
 	red := req.URL.Query().Get("redirect_uri")
 
-	slog.Info(red)
+	// slog.Info(red)
 
 	// TODO: validate redirect_uri
 
 	sc := req.URL.Query().Get("scope")
 
-	slog.Info(sc)
+	// slog.Info(sc)
 
 	// TODO: validate scope
 
 	st := req.URL.Query().Get("state")
 
-	slog.Info(st)
+	// slog.Info(st)
 
 	// TODO: validate state
 
@@ -155,7 +155,7 @@ func Authorize(
 		return
 	}
 
-	slog.Info(fmt.Sprintf("session: %+v", session))
+	// slog.Info(fmt.Sprintf("session: %+v", session))
 
 	id := GenerateID(10)
 
@@ -429,7 +429,7 @@ func Token(
 
 		code := req.FormValue("code")
 
-		slog.Info(code)
+		// slog.Info(code)
 
 		userStr, err := codeKV.GetString(code, nil)
 		if err != nil {
@@ -448,26 +448,23 @@ func Token(
 			return
 		}
 
-		slog.Info(fmt.Sprintf("user: %+v", user))
+		// slog.Info(fmt.Sprintf("user: %+v", user))
 
-		red := req.FormValue("redirect_uri")
+		// red := req.FormValue("redirect_uri")
 
-		slog.Info(red)
+		// slog.Info(red)
 
 		cid := req.FormValue("client_id")
 
-		slog.Info(cid)
+		// slog.Info(cid)
 
-		csec := req.FormValue("client_secret")
+		// csec := req.FormValue("client_secret")
 
-		slog.Info(csec)
+		// slog.Info(csec)
 
-		scope := req.FormValue("scope")
+		// scope := req.FormValue("scope")
 
-		slog.Info(scope)
-
-		// FIXME
-		sign := "secret"
+		// slog.Info(scope)
 
 		iss := req.URL.Scheme + "://" + req.Host
 
@@ -479,12 +476,49 @@ func Token(
 		rt := "refresh_token"
 
 		// FIXME
-		key := token.GenerateSignKey()
+		db, err := sql.Open("d1", "DB")
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			slog.Error("error opening database")
+
+			return
+		}
+
+		queries := schema.New(db)
+
+		key, err := queries.FindJwkSetByID(req.Context(), "1234567890")
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			slog.Error("error finding jwk set")
+
+			return
+		}
+
+		pk, err := base64.StdEncoding.DecodeString(key.DerKeyBase64)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		parsed, err := x509.ParsePKCS1PrivateKey(pk)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		sign := token.SignKey{
+			ID:  key.ID,
+			Key: parsed,
+		}
 
 		res := api.TokenResponseSchema{
-			AccessToken:  at.JWT(sign),
+			AccessToken:  at.JWT("secret"),
 			ExpiresIn:    3600,
-			IdToken:      it.JWT(key),
+			IdToken:      it.JWT(sign),
 			RefreshToken: rt,
 			TokenType:    "Bearer",
 		}

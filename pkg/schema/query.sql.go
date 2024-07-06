@@ -30,6 +30,22 @@ func (q *Queries) FindClientByID(ctx context.Context, id string) (Client, error)
 	return i, err
 }
 
+const findJwkSetByID = `-- name: FindJwkSetByID :one
+SELECT
+    id, der_key_base64
+FROM
+    jwk_sets
+WHERE
+    id = ?
+`
+
+func (q *Queries) FindJwkSetByID(ctx context.Context, id string) (JwkSet, error) {
+	row := q.db.QueryRowContext(ctx, findJwkSetByID, id)
+	var i JwkSet
+	err := row.Scan(&i.ID, &i.DerKeyBase64)
+	return i, err
+}
+
 const listJwkSet = `-- name: ListJwkSet :many
 SELECT
     id, der_key_base64
