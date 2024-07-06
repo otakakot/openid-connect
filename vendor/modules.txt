@@ -5,6 +5,7 @@ github.com/golang-jwt/jwt/v5
 ## explicit; go 1.21.3
 github.com/syumai/workers
 github.com/syumai/workers/cloudflare
+github.com/syumai/workers/cloudflare/d1
 github.com/syumai/workers/cloudflare/internal/cfruntimecontext
 github.com/syumai/workers/internal/jshttp
 github.com/syumai/workers/internal/jsutil

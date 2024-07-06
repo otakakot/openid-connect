@@ -1,10 +1,9 @@
-//go:build js && wasm
-// +build js,wasm
-
 package main
 
 import (
 	"bytes"
+	"crypto/x509"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -16,9 +15,11 @@ import (
 
 	"github.com/syumai/workers"
 	"github.com/syumai/workers/cloudflare"
+	_ "github.com/syumai/workers/cloudflare/d1"
 
 	"github.com/otakakot/openid-connect/internal/token"
 	"github.com/otakakot/openid-connect/pkg/api"
+	"github.com/otakakot/openid-connect/pkg/schema"
 )
 
 func main() {
@@ -98,9 +99,27 @@ func Authorize(
 
 	cid := req.URL.Query().Get("client_id")
 
-	slog.Info(cid)
+	// db, err := sql.Open("d1", "DB")
+	// if err != nil {
+	// 	http.Error(rw, err.Error(), http.StatusInternalServerError)
 
-	// TODO: validate client_id
+	// 	slog.Error("error opening database")
+
+	// 	return
+	// }
+
+	// queries := schema.New(db)
+
+	// cli, err := queries.FindClientByID(req.Context(), cid)
+	// if err != nil {
+	// 	http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+	// 	slog.Error("error finding client")
+
+	// 	return
+	// }
+
+	// slog.Info(cli.ID)
 
 	red := req.URL.Query().Get("redirect_uri")
 
@@ -530,20 +549,64 @@ func Certs(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	// FIXME:
-	key := token.GenerateSignKey()
+	db, err := sql.Open("d1", "DB")
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		slog.Error("error opening database")
+
+		return
+	}
+
+	queries := schema.New(db)
+
+	keys, err := queries.ListJwkSet(req.Context())
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		slog.Error(err.Error())
+
+		slog.Error("error listing jwk set")
+
+		return
+	}
+
+	jwksets := make([]api.JWKSet, len(keys))
+
+	slog.Info(fmt.Sprintf("keys: %+v", keys))
+
+	for i, key := range keys {
+		pk, err := base64.StdEncoding.DecodeString(key.DerKeyBase64)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		parsed, err := x509.ParsePKCS1PrivateKey(pk)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		sign := token.SignKey{
+			ID:  key.ID,
+			Key: parsed,
+		}
+
+		jwksets[i] = api.JWKSet{
+			Alg: sign.Cert().Alg,
+			E:   sign.Cert().E,
+			Kid: sign.Cert().KID,
+			Kty: sign.Cert().KTY,
+			N:   sign.Cert().N,
+			Use: sign.Cert().Use,
+		}
+	}
 
 	res := api.CertsResponseSchema{
-		Keys: []api.JWKSet{
-			{
-				Alg: key.Cert().Alg,
-				E:   key.Cert().E,
-				Kid: key.Cert().KID,
-				Kty: key.Cert().E,
-				N:   key.Cert().N,
-				Use: key.Cert().Use,
-			},
-		},
+		Keys: jwksets,
 	}
 
 	buf := bytes.Buffer{}
