@@ -26,6 +26,7 @@ build: ## Build to WebAssembly.
 .PHONY: deploy
 deploy: ## Deploy to Cloudflare Workers.
 	@wrangler d1 execute openid-connect --remote --file=./schema/schema.sql
+	@wrangler d1 execute openid-connect --remote --file=./sample/sample.sql
 	@wrangler deploy 
 
 .PHONY: gen

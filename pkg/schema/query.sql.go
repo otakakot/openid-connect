@@ -11,7 +11,7 @@ import (
 
 const findClientByID = `-- name: FindClientByID :one
 SELECT
-    id, secret_base64, name, redirect_uri
+    id, hashed_secret, name, redirect_uri
 FROM
     clients
 WHERE
@@ -23,7 +23,7 @@ func (q *Queries) FindClientByID(ctx context.Context, id string) (Client, error)
 	var i Client
 	err := row.Scan(
 		&i.ID,
-		&i.SecretBase64,
+		&i.HashedSecret,
 		&i.Name,
 		&i.RedirectUri,
 	)

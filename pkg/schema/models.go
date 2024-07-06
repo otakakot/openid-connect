@@ -6,7 +6,7 @@ package schema
 
 type Client struct {
 	ID           string
-	SecretBase64 string
+	HashedSecret string
 	Name         string
 	RedirectUri  string
 }

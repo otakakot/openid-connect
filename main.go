@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -16,6 +15,7 @@ import (
 	"github.com/syumai/workers"
 	"github.com/syumai/workers/cloudflare"
 	_ "github.com/syumai/workers/cloudflare/d1"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/otakakot/openid-connect/internal/token"
 	"github.com/otakakot/openid-connect/pkg/api"
@@ -93,39 +93,45 @@ func Authorize(
 
 	rt := req.URL.Query().Get("response_type")
 
-	// slog.Info(rt)
+	if rt != "code" {
+		// TODO: redirect
+		http.Error(rw, "Unsupported response_type", http.StatusBadRequest)
 
-	// TODO: validate response_type
+		return
+	}
 
 	cid := req.URL.Query().Get("client_id")
 
-	// db, err := sql.Open("d1", "DB")
-	// if err != nil {
-	// 	http.Error(rw, err.Error(), http.StatusInternalServerError)
+	db, err := sql.Open("d1", "DB")
+	if err != nil {
+		// TODO: redirect
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
-	// 	slog.Error("error opening database")
+		slog.Error("error opening database")
 
-	// 	return
-	// }
+		return
+	}
 
-	// queries := schema.New(db)
+	queries := schema.New(db)
 
-	// cli, err := queries.FindClientByID(req.Context(), cid)
-	// if err != nil {
-	// 	http.Error(rw, err.Error(), http.StatusInternalServerError)
+	cli, err := queries.FindClientByID(req.Context(), cid)
+	if err != nil {
+		// TODO: redirect
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
-	// 	slog.Error("error finding client")
+		slog.Error("error finding client")
 
-	// 	return
-	// }
-
-	// slog.Info(cli.ID)
+		return
+	}
 
 	red := req.URL.Query().Get("redirect_uri")
 
-	// slog.Info(red)
+	if cli.RedirectUri != red {
+		// TODO: redirect
+		http.Error(rw, "Invalid redirect_uri", http.StatusBadRequest)
 
-	// TODO: validate redirect_uri
+		return
+	}
 
 	sc := req.URL.Query().Get("scope")
 
@@ -150,16 +156,16 @@ func Authorize(
 	sessionBuf := bytes.Buffer{}
 
 	if err := json.NewEncoder(&sessionBuf).Encode(session); err != nil {
+		// TODO: redirect
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	// slog.Info(fmt.Sprintf("session: %+v", session))
-
 	id := GenerateID(10)
 
 	if err := sessionKV.PutString(id, base64.StdEncoding.EncodeToString(sessionBuf.Bytes()), nil); err != nil {
+		// TODO: redirect
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
@@ -211,6 +217,8 @@ func Login(
 			Name:     session_key,
 			Value:    id,
 			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
 		}
 
 		http.SetCookie(rw, &cookie)
@@ -364,8 +372,6 @@ func Callback(
 		return
 	}
 
-	slog.Info(fmt.Sprintf("session: %+v", session))
-
 	userStr, err := userKV.GetString(sid.Value, nil)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusUnauthorized)
@@ -420,6 +426,17 @@ func Token(
 ) {
 	switch req.FormValue("grant_type") {
 	case string(api.AuthorizationCode):
+		db, err := sql.Open("d1", "DB")
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			slog.Error("error opening database")
+
+			return
+		}
+
+		queries := schema.New(db)
+
 		codeKV, err := cloudflare.NewKVNamespace(codeKVNS)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -428,8 +445,6 @@ func Token(
 		}
 
 		code := req.FormValue("code")
-
-		// slog.Info(code)
 
 		userStr, err := codeKV.GetString(code, nil)
 		if err != nil {
@@ -448,19 +463,32 @@ func Token(
 			return
 		}
 
-		// slog.Info(fmt.Sprintf("user: %+v", user))
-
-		// red := req.FormValue("redirect_uri")
-
-		// slog.Info(red)
-
 		cid := req.FormValue("client_id")
 
-		// slog.Info(cid)
+		cli, err := queries.FindClientByID(req.Context(), cid)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusNotFound)
 
-		// csec := req.FormValue("client_secret")
+			slog.Error("error finding client")
 
-		// slog.Info(csec)
+			return
+		}
+
+		red := req.FormValue("redirect_uri")
+
+		if cli.RedirectUri != red {
+			http.Error(rw, "Invalid redirect_uri", http.StatusBadRequest)
+
+			return
+		}
+
+		csec := req.FormValue("client_secret")
+
+		if err := bcrypt.CompareHashAndPassword([]byte(cli.HashedSecret), []byte(csec)); err != nil {
+			http.Error(rw, "Invalid client_secret", http.StatusUnauthorized)
+
+			return
+		}
 
 		// scope := req.FormValue("scope")
 
@@ -468,24 +496,13 @@ func Token(
 
 		iss := req.URL.Scheme + "://" + req.Host
 
+		// TODO: アクセストークンはただの文字列にする JWT 生成 / 検証 のコストが高そう
 		at := token.GenerateAccessToken(iss, user.ID)
 
 		it := token.GenerateIDToken(iss, user.ID, cid, "")
 
 		// FIXME generate refresh token
 		rt := "refresh_token"
-
-		// FIXME
-		db, err := sql.Open("d1", "DB")
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-			slog.Error("error opening database")
-
-			return
-		}
-
-		queries := schema.New(db)
 
 		key, err := queries.FindJwkSetByID(req.Context(), "1234567890")
 		if err != nil {
@@ -606,8 +623,6 @@ func Certs(
 	}
 
 	jwksets := make([]api.JWKSet, len(keys))
-
-	slog.Info(fmt.Sprintf("keys: %+v", keys))
 
 	for i, key := range keys {
 		pk, err := base64.StdEncoding.DecodeString(key.DerKeyBase64)
