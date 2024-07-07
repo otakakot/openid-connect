@@ -7,14 +7,25 @@ const (
 	BearerScopes = "Bearer.Scopes"
 )
 
+// Defines values for AuthorizeErrorType.
+const (
+	AuthorizeErrorTypeAccessDenied            AuthorizeErrorType = "access_denied"
+	AuthorizeErrorTypeInvalidRequest          AuthorizeErrorType = "invalid_request"
+	AuthorizeErrorTypeInvalidScope            AuthorizeErrorType = "invalid_scope"
+	AuthorizeErrorTypeServerError             AuthorizeErrorType = "server_error"
+	AuthorizeErrorTypeTemporarilyUnavailable  AuthorizeErrorType = "temporarily_unavailable"
+	AuthorizeErrorTypeUnauthorizedClient      AuthorizeErrorType = "unauthorized_client"
+	AuthorizeErrorTypeUnsupportedResponseType AuthorizeErrorType = "unsupported_response_type"
+)
+
 // Defines values for TokenErrorType.
 const (
-	InvalidClient        TokenErrorType = "invalid_client"
-	InvalidGrant         TokenErrorType = "invalid_grant"
-	InvalidRequest       TokenErrorType = "invalid_request"
-	InvalidScope         TokenErrorType = "invalid_scope"
-	UnauthorizedClient   TokenErrorType = "unauthorized_client"
-	UnsupportedGrantType TokenErrorType = "unsupported_grant_type"
+	TokenErrorTypeInvalidClient        TokenErrorType = "invalid_client"
+	TokenErrorTypeInvalidGrant         TokenErrorType = "invalid_grant"
+	TokenErrorTypeInvalidRequest       TokenErrorType = "invalid_request"
+	TokenErrorTypeInvalidScope         TokenErrorType = "invalid_scope"
+	TokenErrorTypeUnauthorizedClient   TokenErrorType = "unauthorized_client"
+	TokenErrorTypeUnsupportedGrantType TokenErrorType = "unsupported_grant_type"
 )
 
 // Defines values for TokenRequestSchemaGrantType.
@@ -38,6 +49,9 @@ const (
 	RevokeFormdataBodyTokenTypeHintAccessToken  RevokeFormdataBodyTokenTypeHint = "access_token"
 	RevokeFormdataBodyTokenTypeHintRefreshToken RevokeFormdataBodyTokenTypeHint = "refresh_token"
 )
+
+// AuthorizeErrorType defines model for AuthorizeErrorType.
+type AuthorizeErrorType string
 
 // CertsResponseSchema defines model for CertsResponseSchema.
 type CertsResponseSchema struct {

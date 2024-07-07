@@ -87,30 +87,15 @@ func Authorize(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	sessionKV, err := cloudflare.NewKVNamespace(sessionKVNS)
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	rt := req.URL.Query().Get("response_type")
-
-	if rt != "code" {
-		// TODO: redirect
-		http.Error(rw, "Unsupported response_type", http.StatusBadRequest)
-
-		return
-	}
+	red := req.URL.Query().Get("redirect_uri")
 
 	cid := req.URL.Query().Get("client_id")
 
 	db, err := sql.Open("d1", "DB")
 	if err != nil {
-		// TODO: redirect
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
 		slog.Error("error opening database")
+
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
@@ -119,19 +104,60 @@ func Authorize(
 
 	cli, err := queries.FindClientByID(req.Context(), cid)
 	if err != nil {
-		// TODO: redirect
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
 		slog.Error("error finding client")
+
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	red := req.URL.Query().Get("redirect_uri")
-
 	if cli.RedirectUri != red {
-		// TODO: redirect
+		slog.Warn("invalid redirect_uri. redirect_uri: " + red)
+
 		http.Error(rw, "Invalid redirect_uri", http.StatusBadRequest)
+
+		return
+	}
+
+	sessionKV, err := cloudflare.NewKVNamespace(sessionKVNS)
+	if err != nil {
+		redirectBuf := bytes.Buffer{}
+
+		redirectBuf.WriteString(red)
+
+		values := url.Values{
+			"error": {string(api.AuthorizeErrorTypeServerError)},
+		}
+
+		redirectBuf.WriteByte('?')
+
+		redirectBuf.WriteString(values.Encode())
+
+		redirect, _ := url.ParseRequestURI(redirectBuf.String())
+
+		http.Redirect(rw, req, redirect.String(), http.StatusFound)
+
+		return
+	}
+
+	rt := req.URL.Query().Get("response_type")
+
+	if rt != "code" {
+		redirectBuf := bytes.Buffer{}
+
+		redirectBuf.WriteString(red)
+
+		values := url.Values{
+			"error": {string(api.AuthorizeErrorTypeInvalidRequest)},
+		}
+
+		redirectBuf.WriteByte('?')
+
+		redirectBuf.WriteString(values.Encode())
+
+		redirect, _ := url.ParseRequestURI(redirectBuf.String())
+
+		http.Redirect(rw, req, redirect.String(), http.StatusFound)
 
 		return
 	}
@@ -155,8 +181,21 @@ func Authorize(
 	sessionBuf := bytes.Buffer{}
 
 	if err := json.NewEncoder(&sessionBuf).Encode(session); err != nil {
-		// TODO: redirect
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		redirectBuf := bytes.Buffer{}
+
+		redirectBuf.WriteString(red)
+
+		values := url.Values{
+			"error": {string(api.AuthorizeErrorTypeServerError)},
+		}
+
+		redirectBuf.WriteByte('?')
+
+		redirectBuf.WriteString(values.Encode())
+
+		redirect, _ := url.ParseRequestURI(redirectBuf.String())
+
+		http.Redirect(rw, req, redirect.String(), http.StatusFound)
 
 		return
 	}
@@ -164,8 +203,21 @@ func Authorize(
 	id := GenerateID(10)
 
 	if err := sessionKV.PutString(id, base64.StdEncoding.EncodeToString(sessionBuf.Bytes()), nil); err != nil {
-		// TODO: redirect
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		redirectBuf := bytes.Buffer{}
+
+		redirectBuf.WriteString(red)
+
+		values := url.Values{
+			"error": {string(api.AuthorizeErrorTypeServerError)},
+		}
+
+		redirectBuf.WriteByte('?')
+
+		redirectBuf.WriteString(values.Encode())
+
+		redirect, _ := url.ParseRequestURI(redirectBuf.String())
+
+		http.Redirect(rw, req, redirect.String(), http.StatusFound)
 
 		return
 	}
@@ -316,8 +368,7 @@ func Callback(
 ) {
 	sessionKV, err := cloudflare.NewKVNamespace(sessionKVNS)
 	if err != nil {
-		slog.Error("error creating sessionKV namespace")
-		slog.Error(err.Error())
+		slog.Error("failed to create session KV namespace. error: " + err.Error())
 
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
@@ -326,8 +377,7 @@ func Callback(
 
 	userKV, err := cloudflare.NewKVNamespace(userKVNS)
 	if err != nil {
-		slog.Error("error creating userKV namespace")
-		slog.Error(err.Error())
+		slog.Error("failed to create user KV namespace. error: " + err.Error())
 
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
@@ -336,8 +386,7 @@ func Callback(
 
 	codeKV, err := cloudflare.NewKVNamespace(codeKVNS)
 	if err != nil {
-		slog.Error("error creating codeKV namespace")
-		slog.Error(err.Error())
+		slog.Error("failed to create code KV namespace. error: " + err.Error())
 
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
@@ -346,7 +395,8 @@ func Callback(
 
 	sid, err := req.Cookie(session_key)
 	if err != nil {
-		// TODO: redirect
+		slog.Warn("failed to get session cookie. error: " + err.Error())
+
 		http.Error(rw, err.Error(), http.StatusUnauthorized)
 
 		return
@@ -354,15 +404,9 @@ func Callback(
 
 	sessionStr, err := sessionKV.GetString(sid.Value, nil)
 	if err != nil {
+		slog.Warn("failed to find session. error: " + err.Error())
+
 		http.Error(rw, err.Error(), http.StatusUnauthorized)
-
-		return
-	}
-
-	if err := sessionKV.Delete(sid.Value); err != nil {
-		slog.Error(err.Error())
-
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
@@ -372,31 +416,60 @@ func Callback(
 	session := Session{}
 
 	if err := json.NewDecoder(bytes.NewReader(sessionBt)).Decode(&session); err != nil {
+		slog.Error("failed to decode session. error: " + err.Error())
+
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
+	if err := sessionKV.Delete(sid.Value); err != nil {
+		slog.Error("error deleting session")
+	}
+
 	userStr, err := userKV.GetString(sid.Value, nil)
 	if err != nil {
-		http.Error(rw, err.Error(), http.StatusUnauthorized)
+		redirectBuf := bytes.Buffer{}
+
+		redirectBuf.WriteString(session.RedirectURI)
+
+		values := url.Values{
+			"error": {string(api.AuthorizeErrorTypeAccessDenied)},
+		}
+
+		redirectBuf.WriteByte('?')
+
+		redirectBuf.WriteString(values.Encode())
+
+		redirect, _ := url.ParseRequestURI(redirectBuf.String())
+
+		http.Redirect(rw, req, redirect.String(), http.StatusFound)
 
 		return
 	}
 
 	if err := userKV.Delete(sid.Value); err != nil {
-		slog.Error("error deleting user")
-		slog.Error(err.Error())
-
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
+		slog.Error("failed to delete user. error: " + err.Error())
 	}
 
 	code := GenerateID(15)
 
 	if err := codeKV.PutString(code, userStr, nil); err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		redirectBuf := bytes.Buffer{}
+
+		redirectBuf.WriteString(session.RedirectURI)
+
+		values := url.Values{
+			"error": {string(api.AuthorizeErrorTypeServerError)},
+		}
+
+		redirectBuf.WriteByte('?')
+
+		redirectBuf.WriteString(values.Encode())
+
+		redirect, _ := url.ParseRequestURI(redirectBuf.String())
+
+		http.Redirect(rw, req, redirect.String(), http.StatusFound)
 
 		return
 	}
@@ -458,7 +531,7 @@ func Token(
 			slog.Warn("failed to find code. error: " + err.Error())
 
 			res := api.TokenErrorSchema{
-				Error: api.InvalidRequest,
+				Error: api.TokenErrorTypeInvalidRequest,
 			}
 
 			buf := bytes.Buffer{}
@@ -497,7 +570,7 @@ func Token(
 			slog.Error("failed to find client. error: " + err.Error())
 
 			res := api.TokenErrorSchema{
-				Error: api.InvalidClient,
+				Error: api.TokenErrorTypeInvalidClient,
 			}
 
 			buf := bytes.Buffer{}
@@ -521,7 +594,7 @@ func Token(
 			slog.Warn("invalid client_secret")
 
 			res := api.TokenErrorSchema{
-				Error: api.InvalidClient,
+				Error: api.TokenErrorTypeInvalidClient,
 			}
 
 			buf := bytes.Buffer{}
@@ -545,7 +618,7 @@ func Token(
 			slog.Warn("invalid redirect_uri. redirect_uri: " + red)
 
 			res := api.TokenErrorSchema{
-				Error: api.InvalidRequest,
+				Error: api.TokenErrorTypeInvalidRequest,
 			}
 
 			buf := bytes.Buffer{}
@@ -658,7 +731,7 @@ func Token(
 			slog.Warn("failed to find refresh token. error: " + err.Error())
 
 			res := api.TokenErrorSchema{
-				Error: api.InvalidRequest,
+				Error: api.TokenErrorTypeInvalidRequest,
 			}
 
 			buf := bytes.Buffer{}
@@ -731,7 +804,7 @@ func Token(
 		slog.Warn("unsupported grant_type: " + req.FormValue("grant_type"))
 
 		res := api.TokenErrorSchema{
-			Error: api.UnsupportedGrantType,
+			Error: api.TokenErrorTypeUnsupportedGrantType,
 		}
 
 		buf := bytes.Buffer{}

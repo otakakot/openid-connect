@@ -93,6 +93,12 @@ paths:
                 type: string
                 format: uri
                 example: http://localhost:8080/callback
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorizeErrorType"
         default:
           description: Internal Server Error
   /token:
@@ -346,6 +352,17 @@ components:
         - userinfo_endpoint
         - jwks_uri
         - revocation_endpoint
+    AuthorizeErrorType:
+      type: string
+      enum:
+        - invalid_request
+        - unauthorized_client
+        - access_denied
+        - unsupported_response_type
+        - invalid_scope
+        - server_error
+        - temporarily_unavailable
+      example: invalid_request
     UserInfoResponseSchema:
       type: object
       properties:
