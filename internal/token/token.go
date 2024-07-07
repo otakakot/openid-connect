@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/binary"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -15,6 +16,38 @@ type AccessToken struct {
 	Sub string `json:"sub"`
 	Exp int64  `json:"exp"`
 	Iat int64  `json:"iat"`
+}
+
+func ParceAccessToken(
+	str string,
+	sign string,
+) (*AccessToken, error) {
+	token, err := jwt.Parse(str, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method")
+		}
+
+		return []byte(sign), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		iss := claims["iss"].(string)
+		sub := claims["sub"].(string)
+		exp := int64(claims["exp"].(float64))
+		iat := int64(claims["iat"].(float64))
+
+		return &AccessToken{
+			Iss: iss,
+			Sub: sub,
+			Exp: exp,
+			Iat: iat,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("invalid token")
 }
 
 func GenerateAccessToken(

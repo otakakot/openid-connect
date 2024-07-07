@@ -361,7 +361,6 @@ func Callback(
 	}
 
 	if err := sessionKV.Delete(sid.Value); err != nil {
-		slog.Error("error deleting session")
 		slog.Error(err.Error())
 
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -460,6 +459,10 @@ func Token(
 			return
 		}
 
+		if err := codeKV.Delete(code); err != nil {
+			slog.Error("error deleting code")
+		}
+
 		userBt, _ := base64.StdEncoding.DecodeString(userStr)
 
 		user := User{}
@@ -503,7 +506,6 @@ func Token(
 
 		iss := req.URL.Scheme + "://" + req.Host
 
-		// TODO: アクセストークンはただの文字列にする JWT 生成 / 検証 のコストが高そう
 		at := token.GenerateAccessToken(iss, user.ID)
 
 		it := token.GenerateIDToken(iss, user.ID, cid, "")
@@ -585,11 +587,34 @@ func UserInfo(
 		return
 	}
 
-	// FIXME: validate token
+	at, err := token.ParceAccessToken(tokens[1], "secret")
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusUnauthorized)
+
+		return
+	}
+
+	db, err := sql.Open("d1", "DB")
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		slog.Error("error opening database")
+
+		return
+	}
+
+	queries := schema.New(db)
+
+	user, err := queries.FindUserByID(req.Context(), at.Sub)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusUnauthorized)
+
+		return
+	}
 
 	res := api.UserInfoResponseSchema{
-		Email: "",
-		Sub:   "sub",
+		Sub:   user.ID,
+		Email: user.Email,
 	}
 
 	buf := bytes.Buffer{}

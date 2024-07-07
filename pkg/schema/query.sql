@@ -20,6 +20,14 @@ FROM
 WHERE
     id = ?;
 
+-- name: FindUserByID :one
+SELECT
+    *
+FROM
+    users
+WHERE
+    id = ?;
+
 -- name: FindUserByEmail :one
 SELECT
     *

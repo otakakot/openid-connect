@@ -62,6 +62,22 @@ func (q *Queries) FindUserByEmail(ctx context.Context, email string) (User, erro
 	return i, err
 }
 
+const findUserByID = `-- name: FindUserByID :one
+SELECT
+    id, email, hashed_password
+FROM
+    users
+WHERE
+    id = ?
+`
+
+func (q *Queries) FindUserByID(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRowContext(ctx, findUserByID, id)
+	var i User
+	err := row.Scan(&i.ID, &i.Email, &i.HashedPassword)
+	return i, err
+}
+
 const listJwkSet = `-- name: ListJwkSet :many
 SELECT
     id, der_key_base64
