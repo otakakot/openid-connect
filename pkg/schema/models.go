@@ -15,3 +15,9 @@ type JwkSet struct {
 	ID           string
 	DerKeyBase64 string
 }
+
+type User struct {
+	ID             string
+	Email          string
+	HashedPassword string
+}

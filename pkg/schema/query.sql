@@ -19,3 +19,11 @@ FROM
     clients
 WHERE
     id = ?;
+
+-- name: FindUserByEmail :one
+SELECT
+    *
+FROM
+    users
+WHERE
+    email = ?;

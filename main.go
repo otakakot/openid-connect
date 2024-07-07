@@ -242,21 +242,28 @@ func Login(
 			return
 		}
 
-		slog.Info(sid.Value)
+		db, err := sql.Open("d1", "DB")
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
-		email := req.FormValue("email")
+			slog.Error("error opening database")
 
-		pass := req.FormValue("password")
+			return
+		}
 
-		slog.Info(email)
+		queries := schema.New(db)
 
-		slog.Info(pass)
+		user, err := queries.FindUserByEmail(req.Context(), req.FormValue("email"))
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusUnauthorized)
 
-		// TODO: validate email and password
+			return
+		}
 
-		user := User{
-			ID:    GenerateID(20),
-			Email: req.FormValue("email"),
+		if err := bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(req.FormValue("password"))); err != nil {
+			http.Error(rw, "Invalid client_secret", http.StatusUnauthorized)
+
+			return
 		}
 
 		userBuf := bytes.Buffer{}
