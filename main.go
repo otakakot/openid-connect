@@ -144,10 +144,6 @@ func Authorize(
 
 	st := req.URL.Query().Get("state")
 
-	// slog.Info(st)
-
-	// TODO: validate state
-
 	session := Session{
 		ResponseType: rt,
 		ClientID:     cid,
@@ -433,6 +429,8 @@ func Token(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
+	slog.Info("grant_type: " + req.FormValue("grant_type"))
+
 	switch req.FormValue("grant_type") {
 	case string(api.TokenRequestSchemaGrantTypeAuthorizationCode):
 		db, err := sql.Open("d1", "DB")
@@ -573,8 +571,70 @@ func Token(
 		}
 
 		rw.Write(buf.Bytes())
+
+		return
 	case string(api.TokenRequestSchemaGrantTypeRefreshToken):
-		panic("Not Implemented")
+		ort := req.FormValue("refresh_token")
+
+		rtKV, err := cloudflare.NewKVNamespace(refreshTokenKVNS)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		userStr, err := rtKV.GetString(ort, nil)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusUnauthorized)
+
+			return
+		}
+
+		userBt, _ := base64.StdEncoding.DecodeString(userStr)
+
+		user := User{}
+
+		if err := json.NewDecoder(bytes.NewReader(userBt)).Decode(&user); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		iss := req.URL.Scheme + "://" + req.Host
+
+		at := token.GenerateAccessToken(iss, user.ID)
+
+		nrt := GenerateID(20)
+
+		if err := rtKV.PutString(nrt, userStr, nil); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		if err := rtKV.Delete(ort); err != nil {
+			slog.Warn("failed to delete refresh token. error: " + err.Error())
+		}
+
+		res := api.TokenResponseSchema{
+			AccessToken:  at.JWT("secret"),
+			ExpiresIn:    3600,
+			IdToken:      "",
+			RefreshToken: nrt,
+			TokenType:    "Bearer",
+		}
+
+		buf := bytes.Buffer{}
+
+		if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		rw.Write(buf.Bytes())
+
+		return
 	default:
 		http.Error(rw, "Unsupported grant_type", http.StatusBadRequest)
 

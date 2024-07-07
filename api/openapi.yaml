@@ -101,9 +101,9 @@ paths:
         - OIDC
       summary: Token Endpoint
       description: |
-        Token Endpoint
-        ref: https://openid-foundation-japan.github.io/rfc6749.ja.html#token-req
-        ref: https://openid-foundation-japan.github.io/openid-connect-core-1_0.ja.html#TokenRequest
+        Token Endpoint <br>
+        ref: https://openid-foundation-japan.github.io/rfc6749.ja.html#token-req <br>
+        ref: https://openid-foundation-japan.github.io/openid-connect-core-1_0.ja.html#TokenRequest <br>
       operationId: token
       requestBody:
         required: true
@@ -364,36 +364,35 @@ components:
           example: authorization_code
         code:
           type: string
-          description: code
+          description: needs when grant_type is authorization_code
           example: xxxxxxxxxxxxxxx
         redirect_uri:
           type: string
-          description: http://localhost:8080/rp/callback
+          description: neews when grant_type is authorization_code
           format: uri
           example: http://localhost:8080/rp/callback
-        refresh_token:
-          type: string
-          description: refresh_token
-          example: xxxxxxxx
         client_id:
           type: string
-          description: client_id
+          description: needs when grant_type is authorization_code
           example: client_id
         client_secret:
           type: string
-          description: client_secret
+          description: needs when grant_type is authorization_code
           example: client_secret
+        refresh_token:
+          type: string
+          description: needs when grant_type is refresh_token
+          example: xxxxxxxx
         scope:
           type: string
+          description: optional
           example: openid profile email
         code_verifier:
           type: string
-          description: code_verifier
+          description: optional
           example: code_verifier
       required:
         - grant_type
-        - code
-        - redirect_uri
     TokenResponseSchema:
       type: object
       description: https://openid-foundation-japan.github.io/openid-connect-core-1_0.ja.html#TokenResponse
