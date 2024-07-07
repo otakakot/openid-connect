@@ -435,9 +435,9 @@ func Token(
 	case string(api.TokenRequestSchemaGrantTypeAuthorizationCode):
 		db, err := sql.Open("d1", "DB")
 		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-
 			slog.Error("error opening database")
+
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
@@ -455,13 +455,29 @@ func Token(
 
 		userStr, err := codeKV.GetString(code, nil)
 		if err != nil {
-			http.Error(rw, err.Error(), http.StatusUnauthorized)
+			slog.Warn("failed to find code. error: " + err.Error())
+
+			res := api.TokenErrorSchema{
+				Error: api.InvalidRequest,
+			}
+
+			buf := bytes.Buffer{}
+
+			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			rw.Write(buf.Bytes())
+
+			rw.WriteHeader(http.StatusBadRequest)
 
 			return
 		}
 
 		if err := codeKV.Delete(code); err != nil {
-			slog.Error("error deleting code")
+			slog.Error("error deleting code. error: " + err.Error())
 		}
 
 		userBt, _ := base64.StdEncoding.DecodeString(userStr)
@@ -478,17 +494,23 @@ func Token(
 
 		cli, err := queries.FindClientByID(req.Context(), cid)
 		if err != nil {
-			http.Error(rw, err.Error(), http.StatusNotFound)
+			slog.Error("failed to find client. error: " + err.Error())
 
-			slog.Error("error finding client")
+			res := api.TokenErrorSchema{
+				Error: api.InvalidClient,
+			}
 
-			return
-		}
+			buf := bytes.Buffer{}
 
-		red := req.FormValue("redirect_uri")
+			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
-		if cli.RedirectUri != red {
-			http.Error(rw, "invalid redirect_uri", http.StatusBadRequest)
+				return
+			}
+
+			rw.Write(buf.Bytes())
+
+			rw.WriteHeader(http.StatusBadRequest)
 
 			return
 		}
@@ -496,7 +518,47 @@ func Token(
 		csec := req.FormValue("client_secret")
 
 		if err := bcrypt.CompareHashAndPassword([]byte(cli.HashedSecret), []byte(csec)); err != nil {
-			http.Error(rw, "invalid client_secret", http.StatusUnauthorized)
+			slog.Warn("invalid client_secret")
+
+			res := api.TokenErrorSchema{
+				Error: api.InvalidClient,
+			}
+
+			buf := bytes.Buffer{}
+
+			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			rw.Write(buf.Bytes())
+
+			rw.WriteHeader(http.StatusBadRequest)
+
+			return
+		}
+
+		red := req.FormValue("redirect_uri")
+
+		if cli.RedirectUri != red {
+			slog.Warn("invalid redirect_uri. redirect_uri: " + red)
+
+			res := api.TokenErrorSchema{
+				Error: api.InvalidRequest,
+			}
+
+			buf := bytes.Buffer{}
+
+			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			rw.Write(buf.Bytes())
+
+			rw.WriteHeader(http.StatusBadRequest)
 
 			return
 		}
@@ -528,15 +590,17 @@ func Token(
 
 		key, err := queries.FindJwkSetByID(req.Context(), "1234567890")
 		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			slog.Error("failed to find jwk set. error: " + err.Error())
 
-			slog.Error("error finding jwk set")
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
 
 		pk, err := base64.StdEncoding.DecodeString(key.DerKeyBase64)
 		if err != nil {
+			slog.Error("failed to decode der key base64. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -544,6 +608,8 @@ func Token(
 
 		parsed, err := x509.ParsePKCS1PrivateKey(pk)
 		if err != nil {
+			slog.Error("failed to parse pkcs1 private key. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -565,6 +631,8 @@ func Token(
 		buf := bytes.Buffer{}
 
 		if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			slog.Error("failed to encode token response. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -578,6 +646,8 @@ func Token(
 
 		rtKV, err := cloudflare.NewKVNamespace(refreshTokenKVNS)
 		if err != nil {
+			slog.Error("failed to create refresh token KV namespace. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -585,7 +655,23 @@ func Token(
 
 		userStr, err := rtKV.GetString(ort, nil)
 		if err != nil {
-			http.Error(rw, err.Error(), http.StatusUnauthorized)
+			slog.Warn("failed to find refresh token. error: " + err.Error())
+
+			res := api.TokenErrorSchema{
+				Error: api.InvalidRequest,
+			}
+
+			buf := bytes.Buffer{}
+
+			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			rw.Write(buf.Bytes())
+
+			rw.WriteHeader(http.StatusBadRequest)
 
 			return
 		}
@@ -595,6 +681,8 @@ func Token(
 		user := User{}
 
 		if err := json.NewDecoder(bytes.NewReader(userBt)).Decode(&user); err != nil {
+			slog.Error("failed to decode user. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -607,6 +695,8 @@ func Token(
 		nrt := GenerateID(20)
 
 		if err := rtKV.PutString(nrt, userStr, nil); err != nil {
+			slog.Error("failed to put new refresh token. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -627,6 +717,8 @@ func Token(
 		buf := bytes.Buffer{}
 
 		if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			slog.Error("failed to encode token response. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -636,7 +728,23 @@ func Token(
 
 		return
 	default:
-		http.Error(rw, "Unsupported grant_type", http.StatusBadRequest)
+		slog.Warn("unsupported grant_type: " + req.FormValue("grant_type"))
+
+		res := api.TokenErrorSchema{
+			Error: api.UnsupportedGrantType,
+		}
+
+		buf := bytes.Buffer{}
+
+		if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		rw.Write(buf.Bytes())
+
+		rw.WriteHeader(http.StatusBadRequest)
 
 		return
 	}

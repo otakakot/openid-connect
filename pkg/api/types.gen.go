@@ -7,6 +7,16 @@ const (
 	BearerScopes = "Bearer.Scopes"
 )
 
+// Defines values for TokenErrorType.
+const (
+	InvalidClient        TokenErrorType = "invalid_client"
+	InvalidGrant         TokenErrorType = "invalid_grant"
+	InvalidRequest       TokenErrorType = "invalid_request"
+	InvalidScope         TokenErrorType = "invalid_scope"
+	UnauthorizedClient   TokenErrorType = "unauthorized_client"
+	UnsupportedGrantType TokenErrorType = "unsupported_grant_type"
+)
+
 // Defines values for TokenRequestSchemaGrantType.
 const (
 	TokenRequestSchemaGrantTypeAuthorizationCode TokenRequestSchemaGrantType = "authorization_code"
@@ -65,29 +75,38 @@ type OpenIDConfigurationResponseSchema struct {
 	UserinfoEndpoint string `json:"userinfo_endpoint"`
 }
 
+// TokenErrorSchema defines model for TokenErrorSchema.
+type TokenErrorSchema struct {
+	Error            TokenErrorType `json:"error"`
+	ErrorDescription *string        `json:"error_description,omitempty"`
+	ErrorUri         *string        `json:"error_uri,omitempty"`
+}
+
+// TokenErrorType defines model for TokenErrorType.
+type TokenErrorType string
+
 // TokenRequestSchema defines model for TokenRequestSchema.
 type TokenRequestSchema struct {
-	// ClientId client_id
+	// ClientId needs when grant_type is authorization_code
 	ClientId *string `json:"client_id,omitempty"`
 
-	// ClientSecret client_secret
+	// ClientSecret needs when grant_type is authorization_code
 	ClientSecret *string `json:"client_secret,omitempty"`
 
-	// Code code
-	Code string `json:"code"`
-
-	// CodeVerifier code_verifier
-	CodeVerifier *string `json:"code_verifier,omitempty"`
+	// Code needs when grant_type is authorization_code
+	Code *string `json:"code,omitempty"`
 
 	// GrantType grant_type
 	GrantType TokenRequestSchemaGrantType `json:"grant_type"`
 
-	// RedirectUri http://localhost:8080/rp/callback
-	RedirectUri string `json:"redirect_uri"`
+	// RedirectUri neews when grant_type is authorization_code
+	RedirectUri *string `json:"redirect_uri,omitempty"`
 
-	// RefreshToken refresh_token
+	// RefreshToken needs when grant_type is refresh_token
 	RefreshToken *string `json:"refresh_token,omitempty"`
-	Scope        *string `json:"scope,omitempty"`
+
+	// Scope optional
+	Scope *string `json:"scope,omitempty"`
 }
 
 // TokenRequestSchemaGrantType grant_type
@@ -161,7 +180,7 @@ type LoginFormdataBody struct {
 
 // RevokeFormdataBody defines parameters for Revoke.
 type RevokeFormdataBody struct {
-	Token         *string                          `form:"token,omitempty" json:"token,omitempty"`
+	Token         string                           `form:"token" json:"token"`
 	TokenTypeHint *RevokeFormdataBodyTokenTypeHint `form:"token_type_hint,omitempty" json:"token_type_hint,omitempty"`
 }
 

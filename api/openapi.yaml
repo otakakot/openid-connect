@@ -127,6 +127,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TokenResponseSchema"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenErrorSchema"
         default:
           description: Internal Server Error
   /userinfo:
@@ -387,10 +393,6 @@ components:
           type: string
           description: optional
           example: openid profile email
-        code_verifier:
-          type: string
-          description: optional
-          example: code_verifier
       required:
         - grant_type
     TokenResponseSchema:
@@ -423,6 +425,27 @@ components:
         - refresh_token
         - expires_in
         - id_token
+    TokenErrorSchema:
+      type: object
+      properties:
+        error:
+          $ref: "#/components/schemas/TokenErrorType"
+        error_description:
+          type: string
+        error_uri:
+          type: string
+      required:
+        - error
+    TokenErrorType:
+      type: string
+      enum:
+        - invalid_request
+        - invalid_client
+        - invalid_grant
+        - unauthorized_client
+        - unsupported_grant_type
+        - invalid_scope
+      example: invalid_request
     JWKSet:
       type: object
       properties:
