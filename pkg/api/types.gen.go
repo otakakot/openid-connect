@@ -9,8 +9,8 @@ const (
 
 // Defines values for TokenRequestSchemaGrantType.
 const (
-	AuthorizationCode TokenRequestSchemaGrantType = "authorization_code"
-	RefreshToken      TokenRequestSchemaGrantType = "refresh_token"
+	TokenRequestSchemaGrantTypeAuthorizationCode TokenRequestSchemaGrantType = "authorization_code"
+	TokenRequestSchemaGrantTypeRefreshToken      TokenRequestSchemaGrantType = "refresh_token"
 )
 
 // Defines values for AuthorizeParamsResponseType.
@@ -21,6 +21,12 @@ const (
 // Defines values for AuthorizeParamsScope.
 const (
 	Openid AuthorizeParamsScope = "openid"
+)
+
+// Defines values for RevokeFormdataBodyTokenTypeHint.
+const (
+	RevokeFormdataBodyTokenTypeHintAccessToken  RevokeFormdataBodyTokenTypeHint = "access_token"
+	RevokeFormdataBodyTokenTypeHintRefreshToken RevokeFormdataBodyTokenTypeHint = "refresh_token"
 )
 
 // CertsResponseSchema defines model for CertsResponseSchema.
@@ -153,8 +159,20 @@ type LoginFormdataBody struct {
 	Password *string `form:"password,omitempty" json:"password,omitempty"`
 }
 
+// RevokeFormdataBody defines parameters for Revoke.
+type RevokeFormdataBody struct {
+	Token         *string                          `form:"token,omitempty" json:"token,omitempty"`
+	TokenTypeHint *RevokeFormdataBodyTokenTypeHint `form:"token_type_hint,omitempty" json:"token_type_hint,omitempty"`
+}
+
+// RevokeFormdataBodyTokenTypeHint defines parameters for Revoke.
+type RevokeFormdataBodyTokenTypeHint string
+
 // LoginFormdataRequestBody defines body for Login for application/x-www-form-urlencoded ContentType.
 type LoginFormdataRequestBody LoginFormdataBody
+
+// RevokeFormdataRequestBody defines body for Revoke for application/x-www-form-urlencoded ContentType.
+type RevokeFormdataRequestBody RevokeFormdataBody
 
 // TokenFormdataRequestBody defines body for Token for application/x-www-form-urlencoded ContentType.
 type TokenFormdataRequestBody = TokenRequestSchema

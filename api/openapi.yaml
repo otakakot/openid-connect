@@ -149,6 +149,25 @@ paths:
           description: Unauthorized
         default:
           description: Internal Server Error
+    post:
+      tags:
+        - OIDC
+      summary: UserInfo Endpoint
+      description: UserInfo Endpoint
+      operationId: _userinfo
+      security:
+        - Bearer: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfoResponseSchema"
+        "401":
+          description: Unauthorized
+        default:
+          description: Internal Server Error
   /certs:
     get:
       tags:
@@ -163,6 +182,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CertsResponseSchema"
+        default:
+          description: Internal Server Error
+  /revoke:
+    post:
+      tags:
+        - OIDC
+      summary: Revocation Endpoint
+      description: Revocation Endpoint
+      operationId: revoke
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  example: xxxxxxxxxx
+                token_type_hint:
+                  type: string
+                  enum:
+                    - access_token
+                    - refresh_token
+                  example: refresh_token
+              required:
+                - token
+      responses:
+        "200":
+          description: OK
         default:
           description: Internal Server Error
   /login:

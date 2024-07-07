@@ -23,19 +23,21 @@ import (
 )
 
 func main() {
-	http.HandleFunc("/.well-known/openid-configuration", OpenIDConfiguration)
+	http.HandleFunc("/.well-known/openid-configuration", OpenIDConfiguration) // OIDC
 
-	http.HandleFunc("/authorize", Authorize)
+	http.HandleFunc("/authorize", Authorize) // OIDC
 
-	http.HandleFunc("/login", Login)
+	http.HandleFunc("/login", Login) // IdP
 
-	http.HandleFunc("/callback", Callback)
+	http.HandleFunc("/callback", Callback) // IdP
 
-	http.HandleFunc("/token", Token)
+	http.HandleFunc("/token", Token) // OIDC
 
-	http.HandleFunc("/userinfo", UserInfo)
+	http.HandleFunc("/userinfo", UserInfo) // OIDC
 
-	http.HandleFunc("/certs", Certs)
+	http.HandleFunc("/certs", Certs) // OIDC
+
+	http.HandleFunc("/revoke", Revoke) // OIDC
 
 	workers.Serve(nil) // use http.DefaultServeMux
 }
@@ -432,7 +434,7 @@ func Token(
 	req *http.Request,
 ) {
 	switch req.FormValue("grant_type") {
-	case string(api.AuthorizationCode):
+	case string(api.TokenRequestSchemaGrantTypeAuthorizationCode):
 		db, err := sql.Open("d1", "DB")
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -571,7 +573,7 @@ func Token(
 		}
 
 		rw.Write(buf.Bytes())
-	case string(api.RefreshToken):
+	case string(api.TokenRequestSchemaGrantTypeRefreshToken):
 		panic("Not Implemented")
 	default:
 		http.Error(rw, "Unsupported grant_type", http.StatusBadRequest)
@@ -584,6 +586,12 @@ func UserInfo(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
+	if req.Method != http.MethodGet && req.Method != http.MethodPost {
+		http.Error(rw, "Method Not Allowed", http.StatusMethodNotAllowed)
+
+		return
+	}
+
 	bearer := req.Header.Get("Authorization")
 
 	tokens := strings.Split(bearer, " ")
@@ -645,6 +653,12 @@ func Certs(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
+	if req.Method != http.MethodGet {
+		http.Error(rw, "Method Not Allowed", http.StatusMethodNotAllowed)
+
+		return
+	}
+
 	db, err := sql.Open("d1", "DB")
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -712,4 +726,51 @@ func Certs(
 	}
 
 	rw.Write(buf.Bytes())
+}
+
+func Revoke(
+	rw http.ResponseWriter,
+	req *http.Request,
+) {
+	if req.Method != http.MethodPost {
+		http.Error(rw, "Method Not Allowed", http.StatusMethodNotAllowed)
+
+		return
+	}
+
+	rtKV, err := cloudflare.NewKVNamespace(refreshTokenKVNS)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	rt := req.FormValue("token")
+
+	if rt == "" {
+		slog.Info("empty token")
+
+		return
+	}
+
+	hint := req.FormValue("token_type_hint")
+
+	// TODO: revoke access token
+	if hint == string(api.RevokeFormdataBodyTokenTypeHintAccessToken) {
+		http.Error(rw, "Not Implemented", http.StatusNotImplemented)
+
+		return
+	}
+
+	slog.Info("deleted refresh token: " + rt)
+
+	if err := rtKV.Delete(rt); err != nil {
+		slog.Error(err.Error())
+
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	rw.Write([]byte("OK"))
 }
