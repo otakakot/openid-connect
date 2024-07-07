@@ -261,7 +261,7 @@ func Login(
 		}
 
 		if err := bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(req.FormValue("password"))); err != nil {
-			http.Error(rw, "Invalid client_secret", http.StatusUnauthorized)
+			http.Error(rw, "invalid user", http.StatusUnauthorized)
 
 			return
 		}
@@ -484,7 +484,7 @@ func Token(
 		red := req.FormValue("redirect_uri")
 
 		if cli.RedirectUri != red {
-			http.Error(rw, "Invalid redirect_uri", http.StatusBadRequest)
+			http.Error(rw, "invalid redirect_uri", http.StatusBadRequest)
 
 			return
 		}
@@ -492,7 +492,7 @@ func Token(
 		csec := req.FormValue("client_secret")
 
 		if err := bcrypt.CompareHashAndPassword([]byte(cli.HashedSecret), []byte(csec)); err != nil {
-			http.Error(rw, "Invalid client_secret", http.StatusUnauthorized)
+			http.Error(rw, "invalid client_secret", http.StatusUnauthorized)
 
 			return
 		}
