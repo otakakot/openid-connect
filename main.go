@@ -67,9 +67,10 @@ func OpenIDConfiguration(
 }
 
 const (
-	sessionKVNS = "openid-connect-session"
-	codeKVNS    = "openid-connect-code"
-	userKVNS    = "openid-connect-user"
+	codeKVNS         = "openid-connect-code"
+	userKVNS         = "openid-connect-user"
+	sessionKVNS      = "openid-connect-session"
+	refreshTokenKVNS = "openid-connect-refresh-token"
 )
 
 type Session struct {
@@ -510,8 +511,20 @@ func Token(
 
 		it := token.GenerateIDToken(iss, user.ID, cid, "")
 
-		// FIXME generate refresh token
-		rt := "refresh_token"
+		rt := GenerateID(20)
+
+		rtKV, err := cloudflare.NewKVNamespace(refreshTokenKVNS)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		if err := rtKV.PutString(rt, userStr, nil); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
 
 		key, err := queries.FindJwkSetByID(req.Context(), "1234567890")
 		if err != nil {
