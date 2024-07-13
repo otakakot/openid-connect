@@ -10,8 +10,8 @@ info:
     name: MIT
   version: 0.0.1
 externalDocs:
-  description: Find out more about Swagger
-  url: http://swagger.io
+  description: OpenID Connect Core 1.0 incorporating errata set 1
+  url: https://openid-foundation-japan.github.io/openid-connect-core-1_0.ja.html
 servers:
   - url: http://localhost:8787
 tags:
@@ -314,6 +314,7 @@ components:
   schemas:
     OpenIDConfigurationResponseSchema:
       type: object
+      description: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
       properties:
         issuer:
           type: string
@@ -345,6 +346,18 @@ components:
           description: http://localhost:8787/revoke
           format: uri
           example: http://localhost:8787/revoke
+        subject_types_supported:
+          type: array
+          items:
+            type: string
+          example:
+            - public
+        id_token_signing_alg_values_supported:
+          type: array
+          items:
+            type: string
+          example:
+            - RS256
       required:
         - issuer
         - authorization_endpoint
@@ -352,6 +365,8 @@ components:
         - userinfo_endpoint
         - jwks_uri
         - revocation_endpoint
+        - subject_types_supported
+        - id_token_signing_alg_values_supported
     AuthorizeErrorType:
       type: string
       enum:

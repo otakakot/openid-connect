@@ -68,10 +68,11 @@ type JWKSet struct {
 	Use string `json:"use"`
 }
 
-// OpenIDConfigurationResponseSchema defines model for OpenIDConfigurationResponseSchema.
+// OpenIDConfigurationResponseSchema https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
 type OpenIDConfigurationResponseSchema struct {
 	// AuthorizationEndpoint http://localhost:8787/authorize
-	AuthorizationEndpoint string `json:"authorization_endpoint"`
+	AuthorizationEndpoint            string   `json:"authorization_endpoint"`
+	IdTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
 
 	// Issuer http://localhost:8787
 	Issuer string `json:"issuer"`
@@ -80,7 +81,8 @@ type OpenIDConfigurationResponseSchema struct {
 	JwksUri string `json:"jwks_uri"`
 
 	// RevocationEndpoint http://localhost:8787/revoke
-	RevocationEndpoint string `json:"revocation_endpoint"`
+	RevocationEndpoint    string   `json:"revocation_endpoint"`
+	SubjectTypesSupported []string `json:"subject_types_supported"`
 
 	// TokenEndpoint http://localhost:8787/token
 	TokenEndpoint string `json:"token_endpoint"`

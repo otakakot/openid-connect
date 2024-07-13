@@ -30,12 +30,14 @@ func OpenIDConfiguration(
 	issuer := req.URL.Scheme + "://" + req.Host
 
 	conf := api.OpenIDConfigurationResponseSchema{
-		Issuer:                issuer,
-		AuthorizationEndpoint: issuer + "/authorize",
-		JwksUri:               issuer + "/certs",
-		RevocationEndpoint:    issuer + "/revoke",
-		TokenEndpoint:         issuer + "/token",
-		UserinfoEndpoint:      issuer + "/userinfo",
+		Issuer:                           issuer,
+		AuthorizationEndpoint:            issuer + "/authorize",
+		JwksUri:                          issuer + "/certs",
+		RevocationEndpoint:               issuer + "/revoke",
+		TokenEndpoint:                    issuer + "/token",
+		UserinfoEndpoint:                 issuer + "/userinfo",
+		SubjectTypesSupported:            []string{"public"},
+		IdTokenSigningAlgValuesSupported: []string{"RS256"},
 	}
 
 	if err := json.NewEncoder(&bt).Encode(conf); err != nil {
