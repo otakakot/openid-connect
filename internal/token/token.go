@@ -1,7 +1,6 @@
 package token
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/binary"
@@ -84,19 +83,6 @@ func (at AccessToken) JWT(
 type SignKey struct {
 	ID  string
 	Key *rsa.PrivateKey
-}
-
-func GenerateSignKey() SignKey {
-	reader := rand.Reader
-
-	bitSize := 2048
-
-	key, _ := rsa.GenerateKey(reader, bitSize)
-
-	return SignKey{
-		ID:  "id",
-		Key: key,
-	}
 }
 
 type Cert struct {
