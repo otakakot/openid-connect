@@ -66,13 +66,11 @@ func Authorize(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	red := req.URL.Query().Get("redirect_uri")
-
 	cid := req.URL.Query().Get("client_id")
 
 	db, err := sql.Open("d1", "DB")
 	if err != nil {
-		slog.Error("error opening database")
+		slog.Error("failed to open database. error: " + err.Error())
 
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
@@ -83,12 +81,14 @@ func Authorize(
 
 	cli, err := queries.FindClientByID(req.Context(), cid)
 	if err != nil {
-		slog.Error("error finding client")
+		slog.Warn("failed to find client. error: " + err.Error() + " client_id: " + cid)
 
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		http.Error(rw, err.Error(), http.StatusBadRequest)
 
 		return
 	}
+
+	red := req.URL.Query().Get("redirect_uri")
 
 	if cli.RedirectUri != red {
 		slog.Warn("invalid redirect_uri. redirect_uri: " + red)
@@ -259,6 +259,8 @@ func Login(
 	case http.MethodPost:
 		userKV, err := cloudflare.NewKVNamespace(userKVNS)
 		if err != nil {
+			slog.Error("failed to create user KV namespace. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -266,6 +268,8 @@ func Login(
 
 		sid, err := req.Cookie(session_key)
 		if err != nil {
+			slog.Warn("failed to get session cookie. error: " + err.Error())
+
 			// TODO: redirect
 			http.Error(rw, err.Error(), http.StatusUnauthorized)
 
@@ -274,9 +278,9 @@ func Login(
 
 		db, err := sql.Open("d1", "DB")
 		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			slog.Error("failed to open d1. error: " + err.Error())
 
-			slog.Error("error opening database")
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
@@ -285,12 +289,16 @@ func Login(
 
 		user, err := queries.FindUserByEmail(req.Context(), req.FormValue("email"))
 		if err != nil {
+			slog.Warn("failed to find user. error: " + err.Error() + " email: " + req.FormValue("email"))
+
 			http.Error(rw, err.Error(), http.StatusUnauthorized)
 
 			return
 		}
 
 		if err := bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(req.FormValue("password"))); err != nil {
+			slog.Warn("invalid password. email: " + req.FormValue("email"))
+
 			http.Error(rw, "invalid user", http.StatusUnauthorized)
 
 			return
@@ -299,12 +307,16 @@ func Login(
 		userBuf := bytes.Buffer{}
 
 		if err := json.NewEncoder(&userBuf).Encode(user); err != nil {
+			slog.Error("failed to encode user. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
 
 		if err := userKV.PutString(sid.Value, base64.StdEncoding.EncodeToString(userBuf.Bytes()), nil); err != nil {
+			slog.Error("failed to put user. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -487,7 +499,7 @@ func Token(
 	case string(api.TokenRequestSchemaGrantTypeAuthorizationCode):
 		db, err := sql.Open("d1", "DB")
 		if err != nil {
-			slog.Error("error opening database")
+			slog.Error("failed to open d1. error: " + err.Error())
 
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
@@ -498,6 +510,8 @@ func Token(
 
 		codeKV, err := cloudflare.NewKVNamespace(codeKVNS)
 		if err != nil {
+			slog.Error("failed to create code KV namespace. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -516,6 +530,8 @@ func Token(
 			buf := bytes.Buffer{}
 
 			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				slog.Error("failed to encode token error. error: " + err.Error())
+
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
@@ -529,7 +545,7 @@ func Token(
 		}
 
 		if err := codeKV.Delete(code); err != nil {
-			slog.Error("error deleting code. error: " + err.Error())
+			slog.Error("failed to delete code. error: " + err.Error())
 		}
 
 		userBt, _ := base64.StdEncoding.DecodeString(userStr)
@@ -537,6 +553,8 @@ func Token(
 		user := User{}
 
 		if err := json.NewDecoder(bytes.NewReader(userBt)).Decode(&user); err != nil {
+			slog.Error("failed to decode user. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -546,7 +564,7 @@ func Token(
 
 		cli, err := queries.FindClientByID(req.Context(), cid)
 		if err != nil {
-			slog.Error("failed to find client. error: " + err.Error())
+			slog.Warn("failed to find client. error: " + err.Error())
 
 			res := api.TokenErrorSchema{
 				Error: api.TokenErrorTypeInvalidClient,
@@ -555,6 +573,8 @@ func Token(
 			buf := bytes.Buffer{}
 
 			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				slog.Error("failed to encode token error. error: " + err.Error())
+
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
@@ -579,6 +599,8 @@ func Token(
 			buf := bytes.Buffer{}
 
 			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				slog.Error("failed to encode token error. error: " + err.Error())
+
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
@@ -603,6 +625,8 @@ func Token(
 			buf := bytes.Buffer{}
 
 			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				slog.Error("failed to encode token error. error: " + err.Error())
+
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
@@ -629,12 +653,16 @@ func Token(
 
 		rtKV, err := cloudflare.NewKVNamespace(refreshTokenKVNS)
 		if err != nil {
+			slog.Error("failed to create refresh token KV namespace. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
 
 		if err := rtKV.PutString(rt, userStr, nil); err != nil {
+			slog.Error("failed to put refresh token. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -642,7 +670,7 @@ func Token(
 
 		key, err := queries.FindJwkSetByID(req.Context(), "1234567890")
 		if err != nil {
-			slog.Error("failed to find jwk set. error: " + err.Error())
+			slog.Warn("failed to find jwk set. error: " + err.Error())
 
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
@@ -716,6 +744,8 @@ func Token(
 			buf := bytes.Buffer{}
 
 			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				slog.Error("failed to encode token error. error: " + err.Error())
+
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
@@ -817,12 +847,16 @@ func UserInfo(
 	tokens := strings.Split(bearer, " ")
 
 	if len(tokens) != 2 {
+		slog.Warn("invalid Authorization header. header: " + bearer)
+
 		http.Error(rw, "Invalid Authorization header", http.StatusUnauthorized)
 
 		return
 	}
 
 	if tokens[0] != "Bearer" {
+		slog.Warn("invalid Authorization header. header: " + bearer)
+
 		http.Error(rw, "Invalid Authorization header", http.StatusUnauthorized)
 
 		return
@@ -830,6 +864,8 @@ func UserInfo(
 
 	at, err := token.ParceAccessToken(tokens[1], "secret")
 	if err != nil {
+		slog.Warn("failed to parse access token. error: " + err.Error())
+
 		http.Error(rw, err.Error(), http.StatusUnauthorized)
 
 		return
@@ -837,9 +873,9 @@ func UserInfo(
 
 	db, err := sql.Open("d1", "DB")
 	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		slog.Error("failed to open d1. error: " + err.Error())
 
-		slog.Error("error opening database")
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
@@ -848,6 +884,8 @@ func UserInfo(
 
 	user, err := queries.FindUserByID(req.Context(), at.Sub)
 	if err != nil {
+		slog.Warn("failed to find user. error: " + err.Error() + " sub: " + at.Sub)
+
 		http.Error(rw, err.Error(), http.StatusUnauthorized)
 
 		return
@@ -861,6 +899,8 @@ func UserInfo(
 	buf := bytes.Buffer{}
 
 	if err := json.NewEncoder(&buf).Encode(res); err != nil {
+		slog.Error("failed to encode user info response. error: " + err.Error())
+
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
@@ -881,9 +921,9 @@ func Certs(
 
 	db, err := sql.Open("d1", "DB")
 	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		slog.Error("failed to open d1. error: " + err.Error())
 
-		slog.Error("error opening database")
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
@@ -892,11 +932,9 @@ func Certs(
 
 	keys, err := queries.ListJwkSet(req.Context())
 	if err != nil {
+		slog.Error("failed to list jwk set. error: " + err.Error())
+
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		slog.Error(err.Error())
-
-		slog.Error("error listing jwk set")
 
 		return
 	}
@@ -906,6 +944,8 @@ func Certs(
 	for i, key := range keys {
 		pk, err := base64.StdEncoding.DecodeString(key.DerKeyBase64)
 		if err != nil {
+			slog.Error("failed to decode der key base64. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -913,6 +953,8 @@ func Certs(
 
 		parsed, err := x509.ParsePKCS1PrivateKey(pk)
 		if err != nil {
+			slog.Error("failed to parse pkcs1 private key. error: " + err.Error())
+
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
@@ -960,6 +1002,8 @@ func Revoke(
 
 	rtKV, err := cloudflare.NewKVNamespace(refreshTokenKVNS)
 	if err != nil {
+		slog.Error("failed to create refresh token KV namespace. error: " + err.Error())
+
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
@@ -985,7 +1029,7 @@ func Revoke(
 	slog.Info("deleted refresh token: " + rt)
 
 	if err := rtKV.Delete(rt); err != nil {
-		slog.Error(err.Error())
+		slog.Error("failed to delete refresh token. error: " + err.Error())
 
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
