@@ -120,15 +120,13 @@ func (sk SignKey) Cert() Cert {
 		}
 	}
 
-	e := base64.RawURLEncoding.EncodeToString(data[i:])
-
 	return Cert{
 		KID: sk.ID,
 		KTY: "RSA",
 		Use: "sig",
 		Alg: "RS256",
 		N:   base64.RawURLEncoding.EncodeToString(sk.Key.PublicKey.N.Bytes()),
-		E:   e,
+		E:   base64.RawURLEncoding.EncodeToString(data[i:]),
 	}
 }
 
