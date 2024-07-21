@@ -230,7 +230,7 @@ func GenerateID(length int) string {
 	return string(result)
 }
 
-const session_key = "__session__"
+const sessionkey = "__session__"
 
 type User struct {
 	ID    string
@@ -246,7 +246,7 @@ func Login(
 		id := req.URL.Query().Get("id")
 
 		cookie := http.Cookie{
-			Name:     session_key,
+			Name:     sessionkey,
 			Value:    id,
 			HttpOnly: true,
 			Secure:   true,
@@ -268,7 +268,7 @@ func Login(
 			return
 		}
 
-		sid, err := req.Cookie(session_key)
+		sid, err := req.Cookie(sessionkey)
 		if err != nil {
 			slog.Warn("failed to get session cookie. error: " + err.Error())
 
@@ -386,7 +386,7 @@ func Callback(
 		return
 	}
 
-	sid, err := req.Cookie(session_key)
+	sid, err := req.Cookie(sessionkey)
 	if err != nil {
 		slog.Warn("failed to get session cookie. error: " + err.Error())
 
@@ -468,7 +468,7 @@ func Callback(
 	}
 
 	cookie := http.Cookie{
-		Name:   session_key,
+		Name:   sessionkey,
 		Value:  "",
 		MaxAge: -1,
 	}

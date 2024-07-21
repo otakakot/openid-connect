@@ -11,6 +11,12 @@ help: ## display this help screen
 setup: ## Setup development.
 	@cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .
 
+.PHONY: update
+update: ## go modules update
+	@go get -u -t ./...
+	@go mod tidy
+	@go mod vendor
+
 .PHONY: dev
 dev: ## Run development server.
 	@rm -rf .wrangler/state/
