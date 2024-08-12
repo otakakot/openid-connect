@@ -30,17 +30,6 @@ func ToResponse(res js.Value) (*http.Response, error) {
 	return toResponse(res, body)
 }
 
-// ToStreamResponse pipes JavaScript sides Response to TransformStream and converts to *http.Response.
-//   - see: https://developers.cloudflare.com/workers/runtime-apis/streams/
-func ToStreamResponse(res js.Value) (*http.Response, error) {
-	ts := js.Global().Get("IdentityTransformStream").New()
-	readable := ts.Get("readable")
-	writable := ts.Get("writable")
-	res.Get("body").Call("pipeTo", writable)
-	body := jsutil.ConvertReadableStreamToReadCloser(readable)
-	return toResponse(res, body)
-}
-
 // ToJSResponse converts *http.Response to JavaScript sides Response class object.
 func ToJSResponse(res *http.Response) js.Value {
 	return newJSResponse(res.StatusCode, res.Header, res.Body, nil)
