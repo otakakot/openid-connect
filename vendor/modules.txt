@@ -10,7 +10,7 @@ github.com/syumai/workers/cloudflare/internal/cfruntimecontext
 github.com/syumai/workers/internal/jshttp
 github.com/syumai/workers/internal/jsutil
 github.com/syumai/workers/internal/runtimecontext
-# golang.org/x/crypto v0.25.0
+# golang.org/x/crypto v0.26.0
 ## explicit; go 1.20
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
