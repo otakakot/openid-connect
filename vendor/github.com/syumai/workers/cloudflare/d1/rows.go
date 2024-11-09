@@ -7,6 +7,8 @@ import (
 	"math"
 	"sync"
 	"syscall/js"
+
+	"github.com/syumai/workers/internal/jsutil"
 )
 
 type rows struct {
@@ -61,9 +63,14 @@ func convertRowColumnValueToAny(v js.Value) (driver.Value, error) {
 	case js.TypeString:
 		return v.String(), nil
 	case js.TypeObject:
-		// TODO: handle BLOB type (ArrayBuffer).
-		// see: https://developers.cloudflare.com/d1/platform/client-api/#type-conversion
-		return nil, errors.New("d1: row column value type object is not currently supported")
+		// handle BLOB type (ArrayBuffer).
+		src := jsutil.Uint8ArrayClass.New(v)
+		dst := make([]byte, src.Length())
+		n := js.CopyBytesToGo(dst, src)
+		if n != len(dst) {
+			return nil, errors.New("incomplete copy from Uint8Array")
+		}
+		return dst[:n], nil
 	}
 	return nil, errors.New("d1: unexpected row column value type")
 }

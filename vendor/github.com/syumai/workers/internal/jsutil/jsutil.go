@@ -7,23 +7,28 @@ import (
 )
 
 var (
-	RuntimeContext      = js.Global().Get("context")
-	Binding             = js.Global().Get("context").Get("binding")
-	ObjectClass         = js.Global().Get("Object")
-	PromiseClass        = js.Global().Get("Promise")
-	RequestClass        = js.Global().Get("Request")
-	ResponseClass       = js.Global().Get("Response")
-	HeadersClass        = js.Global().Get("Headers")
-	ArrayClass          = js.Global().Get("Array")
-	Uint8ArrayClass     = js.Global().Get("Uint8Array")
-	ErrorClass          = js.Global().Get("Error")
-	ReadableStreamClass = js.Global().Get("ReadableStream")
-	DateClass           = js.Global().Get("Date")
-	Null                = js.ValueOf(nil)
+	RuntimeContext         = js.Global().Get("context")
+	Binding                = js.Global().Get("context").Get("binding")
+	ObjectClass            = js.Global().Get("Object")
+	PromiseClass           = js.Global().Get("Promise")
+	RequestClass           = js.Global().Get("Request")
+	ResponseClass          = js.Global().Get("Response")
+	HeadersClass           = js.Global().Get("Headers")
+	ArrayClass             = js.Global().Get("Array")
+	Uint8ArrayClass        = js.Global().Get("Uint8Array")
+	ErrorClass             = js.Global().Get("Error")
+	ReadableStreamClass    = js.Global().Get("ReadableStream")
+	FixedLengthStreamClass = js.Global().Get("FixedLengthStream")
+	DateClass              = js.Global().Get("Date")
+	Null                   = js.ValueOf(nil)
 )
 
 func NewObject() js.Value {
 	return ObjectClass.New()
+}
+
+func NewArray(size int) js.Value {
+	return ArrayClass.New(size)
 }
 
 func NewUint8Array(size int) js.Value {
@@ -89,7 +94,7 @@ func StrRecordToMap(v js.Value) map[string]string {
 	return result
 }
 
-// MaybeString returns string value of given JavaScript value or returns nil if the value is undefined.
+// MaybeString returns string value of given JavaScript value or returns "" if the value is undefined.
 func MaybeString(v js.Value) string {
 	if v.IsUndefined() {
 		return ""

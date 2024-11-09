@@ -198,3 +198,26 @@ func ConvertReaderToReadableStream(reader io.ReadCloser) js.Value {
 	}))
 	return ReadableStreamClass.New(rsInit)
 }
+
+// ConvertReaderToFixedLengthStream converts io.ReadCloser to TransformStream.
+func ConvertReaderToFixedLengthStream(rc io.ReadCloser, size int64) js.Value {
+	stream := FixedLengthStreamClass.New(js.ValueOf(size))
+	go func(writer js.Value) {
+		defer rc.Close()
+
+		chunk := make([]byte, min(size, defaultChunkSize))
+		for {
+			n, err := rc.Read(chunk)
+			if n > 0 {
+				b := Uint8ArrayClass.New(n)
+				js.CopyBytesToJS(b, chunk[:n])
+				writer.Call("write", b)
+			}
+			if err != nil {
+				writer.Call("close")
+				return
+			}
+		}
+	}(stream.Get("writable").Call("getWriter"))
+	return stream.Get("readable")
+}

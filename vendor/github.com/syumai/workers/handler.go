@@ -25,3 +25,15 @@ func Serve(handler http.Handler) {
 	fmt.Fprintln(os.Stderr, "warn: this server is currently running in non-JS mode. to enable JS-related features, please use the make command in the syumai/workers template.")
 	http.ListenAndServe(addr, handler)
 }
+
+func ServeNonBlock(http.Handler) {
+	panic("ServeNonBlock is not supported in non-JS environments")
+}
+
+func Ready() {
+	panic("Ready is not supported in non-JS environments")
+}
+
+func Done() <-chan struct{} {
+	panic("Done is not supported in non-JS environments")
+}
