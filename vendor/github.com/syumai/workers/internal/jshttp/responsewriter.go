@@ -3,6 +3,7 @@ package jshttp
 import (
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"syscall/js"
 
@@ -51,5 +52,6 @@ func (w *ResponseWriter) WriteRawJSBody(body js.Value) {
 // ToJSResponse converts *ResponseWriter to JavaScript sides Response.
 //   - Response: https://developer.mozilla.org/docs/Web/API/Response
 func (w *ResponseWriter) ToJSResponse() js.Value {
-	return newJSResponse(w.StatusCode, w.HeaderValue, w.Reader, w.RawJSBody)
+	contentLength, _ := strconv.ParseInt(w.HeaderValue.Get("Content-Length"), 10, 64)
+	return newJSResponse(w.StatusCode, w.HeaderValue, contentLength, w.Reader, w.RawJSBody)
 }

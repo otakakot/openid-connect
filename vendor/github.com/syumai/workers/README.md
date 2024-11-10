@@ -31,6 +31,9 @@
 * [x] FetchEvent
 * [x] Cron Triggers
 * [x] TCP Sockets
+* [ ] Queues
+  - [x] Producer
+  - [ ] Consumer
 
 ## Installation
 

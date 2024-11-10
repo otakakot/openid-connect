@@ -32,12 +32,12 @@ func ToResponse(res js.Value) (*http.Response, error) {
 
 // ToJSResponse converts *http.Response to JavaScript sides Response class object.
 func ToJSResponse(res *http.Response) js.Value {
-	return newJSResponse(res.StatusCode, res.Header, res.Body, nil)
+	return newJSResponse(res.StatusCode, res.Header, res.ContentLength, res.Body, nil)
 }
 
 // newJSResponse creates JavaScript sides Response class object.
 //   - Response: https://developer.mozilla.org/docs/Web/API/Response
-func newJSResponse(statusCode int, headers http.Header, body io.ReadCloser, rawBody *js.Value) js.Value {
+func newJSResponse(statusCode int, headers http.Header, contentLength int64, body io.ReadCloser, rawBody *js.Value) js.Value {
 	status := statusCode
 	if status == 0 {
 		status = http.StatusOK
@@ -55,6 +55,8 @@ func newJSResponse(statusCode int, headers http.Header, body io.ReadCloser, rawB
 	var readableStream js.Value
 	if rawBody != nil {
 		readableStream = *rawBody
+	} else if contentLength > 0 {
+		readableStream = jsutil.ConvertReaderToFixedLengthStream(body, contentLength)
 	} else {
 		readableStream = jsutil.ConvertReaderToReadableStream(body)
 	}

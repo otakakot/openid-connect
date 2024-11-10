@@ -34,11 +34,19 @@ func (s *stmt) Exec([]driver.Value) (driver.Result, error) {
 }
 
 // ExecContext executes prepared statement.
-// Given []drier.NamedValue's `Name` field will be ignored because Cloudflare D1 client doesn't support it.
+// Given []driver.NamedValue's `Name` field will be ignored because Cloudflare D1 client doesn't support it.
 func (s *stmt) ExecContext(_ context.Context, args []driver.NamedValue) (driver.Result, error) {
 	argValues := make([]any, len(args))
 	for i, arg := range args {
-		argValues[i] = arg.Value
+		if src, ok := arg.Value.([]byte); ok {
+			dst := jsutil.Uint8ArrayClass.New(len(src))
+			if n := js.CopyBytesToJS(dst, src); n != len(src) {
+				return nil, errors.New("incomplete copy into Uint8Array")
+			}
+			argValues[i] = dst
+		} else {
+			argValues[i] = arg.Value
+		}
 	}
 	resultPromise := s.stmtObj.Call("bind", argValues...).Call("run")
 	resultObj, err := jsutil.AwaitPromise(resultPromise)
@@ -57,7 +65,15 @@ func (s *stmt) Query([]driver.Value) (driver.Rows, error) {
 func (s *stmt) QueryContext(_ context.Context, args []driver.NamedValue) (driver.Rows, error) {
 	argValues := make([]any, len(args))
 	for i, arg := range args {
-		argValues[i] = arg.Value
+		if src, ok := arg.Value.([]byte); ok {
+			dst := jsutil.Uint8ArrayClass.New(len(src))
+			if n := js.CopyBytesToJS(dst, src); n != len(src) {
+				return nil, errors.New("incomplete copy into Uint8Array")
+			}
+			argValues[i] = dst
+		} else {
+			argValues[i] = arg.Value
+		}
 	}
 	resultPromise := s.stmtObj.Call("bind", argValues...).Call("raw", map[string]any{"columnNames": true})
 	rowsArray, err := jsutil.AwaitPromise(resultPromise)

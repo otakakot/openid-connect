@@ -16,7 +16,7 @@ import (
 
 var (
 	httpHandler http.Handler
-	closeCh     = make(chan struct{})
+	doneCh      = make(chan struct{})
 )
 
 func init() {
@@ -52,7 +52,7 @@ type appCloser struct {
 }
 
 func (c *appCloser) Close() error {
-	defer close(closeCh)
+	defer close(doneCh)
 	return c.ReadCloser.Close()
 }
 
@@ -84,16 +84,32 @@ func handleRequest(reqObj js.Value) (js.Value, error) {
 	return w.ToJSResponse(), nil
 }
 
-//go:wasmimport workers ready
-func ready()
-
-// Server serves http.Handler on a JS runtime.
+// Serve serves http.Handler on a JS runtime.
 // if the given handler is nil, http.DefaultServeMux will be used.
 func Serve(handler http.Handler) {
+	ServeNonBlock(handler)
+	Ready()
+	<-Done()
+}
+
+// ServeNonBlock sets the http.Handler to be served but does not signal readiness or block
+// indefinitely. The non-blocking form is meant to be used in conjunction with Ready and WaitForCompletion.
+func ServeNonBlock(handler http.Handler) {
 	if handler == nil {
 		handler = http.DefaultServeMux
 	}
 	httpHandler = handler
+}
+
+//go:wasmimport workers ready
+func ready()
+
+// Ready must be called after all setups of the Go side's handlers are done.
+func Ready() {
 	ready()
-	<-closeCh
+}
+
+// Done returns a channel which is closed when the handler is done.
+func Done() <-chan struct{} {
+	return doneCh
 }
