@@ -2,6 +2,7 @@ package token
 
 import (
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
@@ -159,4 +160,47 @@ func (it IDToken) JWT(
 	str, _ := token.SignedString(sign.Key)
 
 	return str
+}
+
+func DecodeDERPublicKeyBase64(
+	encoded string,
+) (*rsa.PublicKey, error) {
+	derBytes, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, err
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(derBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	rsaPub, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not an RSA public key")
+	}
+
+	return rsaPub, nil
+}
+
+func ValidateToken(
+	tokenString string,
+	publicKey *rsa.PublicKey,
+) (*jwt.MapClaims, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return publicKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		return &claims, nil
+	}
+
+	return nil, fmt.Errorf("invalid token")
 }

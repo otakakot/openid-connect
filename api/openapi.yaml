@@ -417,6 +417,10 @@ components:
           type: string
           description: needs when grant_type is authorization_code
           example: client_secret
+        client_assertion:
+          type: string
+          description: needs when grant_type is authorization_code. ref https://datatracker.ietf.org/doc/html/rfc7523#section-2.2
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
         refresh_token:
           type: string
           description: needs when grant_type is refresh_token

@@ -1,13 +1,14 @@
 CREATE TABLE IF NOT EXISTS clients (
     id TEXT PRIMARY KEY,
     hashed_secret TEXT NOT NULL,
+    der_public_key_base64 TEXT NOT NULL,
     name TEXT NOT NULL,
     redirect_uri TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS jwk_sets (
     id TEXT PRIMARY KEY,
-    der_key_base64 TEXT NOT NULL
+    der_private_key_base64 TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS users (

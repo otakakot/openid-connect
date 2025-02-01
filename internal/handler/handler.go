@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -589,10 +590,8 @@ func Token(
 			return
 		}
 
-		csec := req.FormValue("client_secret")
-
-		if err := bcrypt.CompareHashAndPassword([]byte(cli.HashedSecret), []byte(csec)); err != nil {
-			slog.Warn("invalid client_secret")
+		if req.FormValue("client_secret") == "" && req.FormValue("client_assertion") == "" {
+			slog.WarnContext(req.Context(), "client_secret or client_assertion is required")
 
 			res := api.TokenErrorSchema{
 				Error: api.TokenErrorTypeInvalidClient,
@@ -611,8 +610,100 @@ func Token(
 			rw.Write(buf.Bytes())
 
 			rw.WriteHeader(http.StatusBadRequest)
+		}
 
-			return
+		if req.FormValue("client_secret") != "" && req.FormValue("client_assertion") != "" {
+			slog.WarnContext(req.Context(), "client_secret and client_assertion are both provided")
+
+			res := api.TokenErrorSchema{
+				Error: api.TokenErrorTypeInvalidClient,
+			}
+
+			buf := bytes.Buffer{}
+
+			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				slog.Error("failed to encode token error. error: " + err.Error())
+
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			rw.Write(buf.Bytes())
+
+			rw.WriteHeader(http.StatusBadRequest)
+		}
+
+		if csec := req.FormValue("client_secret"); csec != "" {
+			if err := bcrypt.CompareHashAndPassword([]byte(cli.HashedSecret), []byte(csec)); err != nil {
+				slog.Warn("invalid client_secret")
+
+				res := api.TokenErrorSchema{
+					Error: api.TokenErrorTypeInvalidClient,
+				}
+
+				buf := bytes.Buffer{}
+
+				if err := json.NewEncoder(&buf).Encode(res); err != nil {
+					slog.Error("failed to encode token error. error: " + err.Error())
+
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+					return
+				}
+
+				rw.Write(buf.Bytes())
+
+				rw.WriteHeader(http.StatusBadRequest)
+
+				return
+			}
+		}
+
+		// TODO: client_assertion_type の検証
+
+		if cas := req.FormValue("client_assertion"); cas != "" {
+			slog.InfoContext(req.Context(), "client_assertion: "+cas)
+
+			slog.InfoContext(req.Context(), "client public key: "+cli.DerPublicKeyBase64)
+
+			pubkey, err := token.DecodeDERPublicKeyBase64(cli.DerPublicKeyBase64)
+			if err != nil {
+				slog.Error("failed to decode der public key base64. error: " + err.Error())
+
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			claims, err := token.ValidateToken(cas, pubkey)
+			if err != nil {
+				slog.Warn("failed to validate token. error: " + err.Error())
+
+				res := api.TokenErrorSchema{
+					Error: api.TokenErrorTypeInvalidClient,
+				}
+
+				buf := bytes.Buffer{}
+
+				if err := json.NewEncoder(&buf).Encode(res); err != nil {
+					slog.Error("failed to encode token error. error: " + err.Error())
+
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+					return
+				}
+
+				rw.Write(buf.Bytes())
+
+				rw.WriteHeader(http.StatusBadRequest)
+
+				return
+			}
+
+			slog.InfoContext(req.Context(), fmt.Sprintf("%+v", claims))
+
+			// TODO: claims の検証
 		}
 
 		red := req.FormValue("redirect_uri")
@@ -679,9 +770,9 @@ func Token(
 			return
 		}
 
-		pk, err := base64.StdEncoding.DecodeString(key.DerKeyBase64)
+		pk, err := base64.StdEncoding.DecodeString(key.DerPrivateKeyBase64)
 		if err != nil {
-			slog.Error("failed to decode der key base64. error: " + err.Error())
+			slog.Error("failed to decode der private key base64. error: " + err.Error())
 
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
@@ -944,9 +1035,9 @@ func Certs(
 	jwksets := make([]api.JWKSet, len(keys))
 
 	for i, key := range keys {
-		pk, err := base64.StdEncoding.DecodeString(key.DerKeyBase64)
+		pk, err := base64.StdEncoding.DecodeString(key.DerPrivateKeyBase64)
 		if err != nil {
-			slog.Error("failed to decode der key base64. error: " + err.Error())
+			slog.Error("failed to decode der private key base64. error: " + err.Error())
 
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
