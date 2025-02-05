@@ -676,7 +676,7 @@ func Token(
 				return
 			}
 
-			claims, err := token.ValidateToken(cas, pubkey)
+			claims, err := token.ValidateClientAssertion(cas, pubkey)
 			if err != nil {
 				slog.Warn("failed to validate token. error: " + err.Error())
 

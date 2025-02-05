@@ -18,6 +18,37 @@ type AccessToken struct {
 	Iat int64  `json:"iat"`
 }
 
+func GenerateAccessToken(
+	iss string,
+	sub string,
+) AccessToken {
+	now := time.Now()
+
+	return AccessToken{
+		Iss: iss,
+		Sub: sub,
+		Exp: now.Add(time.Hour).Unix(),
+		Iat: now.Unix(),
+	}
+}
+
+func (at AccessToken) JWT(
+	sign string,
+) string {
+	claims := jwt.MapClaims{
+		"iss": at.Iss,
+		"sub": at.Sub,
+		"exp": at.Exp,
+		"iat": at.Iat,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	str, _ := token.SignedString([]byte(sign))
+
+	return str
+}
+
 func ParceAccessToken(
 	str string,
 	sign string,
@@ -48,37 +79,6 @@ func ParceAccessToken(
 	}
 
 	return nil, fmt.Errorf("invalid token")
-}
-
-func GenerateAccessToken(
-	iss string,
-	sub string,
-) AccessToken {
-	now := time.Now()
-
-	return AccessToken{
-		Iss: iss,
-		Sub: sub,
-		Exp: now.Add(time.Hour).Unix(),
-		Iat: now.Unix(),
-	}
-}
-
-func (at AccessToken) JWT(
-	sign string,
-) string {
-	claims := jwt.MapClaims{
-		"iss": at.Iss,
-		"sub": at.Sub,
-		"exp": at.Exp,
-		"iat": at.Iat,
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	str, _ := token.SignedString([]byte(sign))
-
-	return str
 }
 
 type SignKey struct {
@@ -121,6 +121,7 @@ type IDToken struct {
 	Iss string `json:"iss"`
 	Sub string `json:"sub"`
 	Aud string `json:"aud"`
+	Jti string `json:"jti"`
 	Exp int64  `json:"exp"`
 	Iat int64  `json:"iat"`
 }
@@ -137,6 +138,7 @@ func GenerateIDToken(
 		Iss: iss,
 		Sub: sub,
 		Aud: aud,
+		Jti: jti,
 		Exp: now.Add(time.Hour).Unix(),
 		Iat: now.Unix(),
 	}
@@ -149,6 +151,7 @@ func (it IDToken) JWT(
 		"iss": it.Iss,
 		"sub": it.Sub,
 		"aud": it.Aud,
+		"jti": it.Jti,
 		"exp": it.Exp,
 		"iat": it.Iat,
 	}
@@ -183,11 +186,11 @@ func DecodeDERPublicKeyBase64(
 	return rsaPub, nil
 }
 
-func ValidateToken(
-	tokenString string,
+func ValidateClientAssertion(
+	tokenStr string,
 	publicKey *rsa.PublicKey,
 ) (*jwt.MapClaims, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
