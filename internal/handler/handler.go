@@ -94,9 +94,21 @@ func Authorize(
 	red := req.URL.Query().Get("redirect_uri")
 
 	if cli.RedirectUri != red {
-		slog.Warn("invalid redirect_uri. redirect_uri: " + red)
+		redirectBuf := bytes.Buffer{}
 
-		http.Error(rw, "Invalid redirect_uri", http.StatusBadRequest)
+		redirectBuf.WriteString(cli.RedirectUri)
+
+		values := url.Values{
+			"error": {string(api.AuthorizeErrorTypeInvalidRequest)},
+		}
+
+		redirectBuf.WriteByte('?')
+
+		redirectBuf.WriteString(values.Encode())
+
+		redirect, _ := url.ParseRequestURI(redirectBuf.String())
+
+		http.Redirect(rw, req, redirect.String(), http.StatusFound)
 
 		return
 	}
