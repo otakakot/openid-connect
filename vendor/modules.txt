@@ -1,12 +1,14 @@
 # github.com/golang-jwt/jwt/v5 v5.2.1
 ## explicit; go 1.18
 github.com/golang-jwt/jwt/v5
-# github.com/syumai/workers v0.27.0
+# github.com/syumai/workers v0.28.1
 ## explicit; go 1.21.3
 github.com/syumai/workers
 github.com/syumai/workers/cloudflare
 github.com/syumai/workers/cloudflare/d1
 github.com/syumai/workers/cloudflare/internal/cfruntimecontext
+github.com/syumai/workers/cloudflare/kv
+github.com/syumai/workers/cloudflare/r2
 github.com/syumai/workers/internal/jshttp
 github.com/syumai/workers/internal/jsutil
 github.com/syumai/workers/internal/runtimecontext
