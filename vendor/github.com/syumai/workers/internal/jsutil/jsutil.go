@@ -16,6 +16,7 @@ var (
 	HeadersClass           = js.Global().Get("Headers")
 	ArrayClass             = js.Global().Get("Array")
 	Uint8ArrayClass        = js.Global().Get("Uint8Array")
+	Uint8ClampedArrayClass = js.Global().Get("Uint8ClampedArray")
 	ErrorClass             = js.Global().Get("Error")
 	ReadableStreamClass    = js.Global().Get("ReadableStream")
 	FixedLengthStreamClass = js.Global().Get("FixedLengthStream")
