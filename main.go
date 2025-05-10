@@ -9,21 +9,17 @@ import (
 )
 
 func main() {
-	http.HandleFunc("/.well-known/openid-configuration", handler.OpenIDConfiguration) // OIDC
+	// OpenID Connect
+	http.HandleFunc("GET /.well-known/openid-configuration", handler.OpenIDConfiguration)
+	http.HandleFunc("GET /authorize", handler.Authorize)
+	http.HandleFunc("POST /token", handler.Token)
+	http.HandleFunc("GET /userinfo", handler.UserInfo)
+	http.HandleFunc("POST /userinfo", handler.UserInfo)
+	http.HandleFunc("GET /certs", handler.Certs)
+	http.HandleFunc("POST /revoke", handler.Revoke)
 
-	http.HandleFunc("/authorize", handler.Authorize) // OIDC
-
-	http.HandleFunc("/login", handler.Login) // IdP
-
-	http.HandleFunc("/callback", handler.Callback) // IdP
-
-	http.HandleFunc("/token", handler.Token) // OIDC
-
-	http.HandleFunc("/userinfo", handler.UserInfo) // OIDC
-
-	http.HandleFunc("/certs", handler.Certs) // OIDC
-
-	http.HandleFunc("/revoke", handler.Revoke) // OIDC
+	http.HandleFunc("/login", handler.Login)
+	http.HandleFunc("/callback", handler.Callback)
 
 	workers.Serve(nil) // use http.DefaultServeMux
 }

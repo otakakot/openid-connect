@@ -20,8 +20,8 @@ update: ## go modules update
 .PHONY: dev
 dev: ## Run development server.
 	@rm -rf .wrangler/state/
-	@wrangler d1 execute openid-connect --local --file=./schema/schema.sql
-	@wrangler d1 execute openid-connect --local --file=./sample/sample.sql
+	@wrangler d1 execute oidc --local --file=./schema/schema.sql
+	@wrangler d1 execute oidc --local --file=./sample/sample.sql
 	@wrangler dev
 
 .PHONY: build
@@ -29,11 +29,10 @@ build: ## Build to WebAssembly.
 	@go run github.com/syumai/workers/cmd/workers-assets-gen@v0.28.1 -mode=go
 	@GOOS=js GOARCH=wasm go build -o ./build/app.wasm .
 
-
 .PHONY: deploy
 deploy: ## Deploy to Cloudflare Workers.
-	@wrangler d1 execute openid-connect --remote --file=./schema/schema.sql
-	@wrangler d1 execute openid-connect --remote --file=./sample/sample.sql
+	@wrangler d1 execute oidc --remote --file=./schema/schema.sql
+	@wrangler d1 execute oidc --remote --file=./sample/sample.sql
 	@wrangler deploy 
 
 .PHONY: gen

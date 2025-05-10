@@ -2,13 +2,13 @@ package handler
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,7 +17,8 @@ import (
 	_ "github.com/syumai/workers/cloudflare/d1"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/otakakot/openid-connect/internal/token"
+	"github.com/otakakot/openid-connect/internal/core"
+	"github.com/otakakot/openid-connect/internal/database"
 	"github.com/otakakot/openid-connect/pkg/api"
 	"github.com/otakakot/openid-connect/pkg/schema"
 )
@@ -26,8 +27,6 @@ func OpenIDConfiguration(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	bt := bytes.Buffer{}
-
 	issuer := req.URL.Scheme + "://" + req.Host
 
 	conf := api.OpenIDConfigurationResponseSchema{
@@ -41,21 +40,12 @@ func OpenIDConfiguration(
 		IdTokenSigningAlgValuesSupported: []string{"RS256"},
 	}
 
-	if err := json.NewEncoder(&bt).Encode(conf); err != nil {
+	if err := json.NewEncoder(rw).Encode(conf); err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
-
-	rw.Write(bt.Bytes())
 }
-
-const (
-	codeKVNS         = "openid-connect-code"
-	userKVNS         = "openid-connect-user"
-	sessionKVNS      = "openid-connect-session"
-	refreshTokenKVNS = "openid-connect-refresh-token"
-)
 
 type Session struct {
 	ResponseType string
@@ -71,18 +61,7 @@ func Authorize(
 ) {
 	cid := req.URL.Query().Get("client_id")
 
-	db, err := sql.Open("d1", "DB")
-	if err != nil {
-		slog.Error("failed to open database. error: " + err.Error())
-
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	queries := schema.New(db)
-
-	cli, err := queries.FindClientByID(req.Context(), cid)
+	cli, err := schema.New(database.D1).FindClientByID(req.Context(), cid)
 	if err != nil {
 		slog.Warn("failed to find client. error: " + err.Error() + " client_id: " + cid)
 
@@ -113,7 +92,7 @@ func Authorize(
 		return
 	}
 
-	sessionKV, err := cloudflare.NewKVNamespace(sessionKVNS)
+	sessionKV, err := cloudflare.NewKVNamespace(database.KVNSSession)
 	if err != nil {
 		redirectBuf := bytes.Buffer{}
 
@@ -194,7 +173,7 @@ func Authorize(
 		return
 	}
 
-	id := GenerateID(10)
+	id := rand.Text()
 
 	if err := sessionKV.PutString(id, base64.StdEncoding.EncodeToString(sessionBuf.Bytes()), nil); err != nil {
 		redirectBuf := bytes.Buffer{}
@@ -233,22 +212,7 @@ func Authorize(
 	http.Redirect(rw, req, redirect.String(), http.StatusFound)
 }
 
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-func GenerateID(length int) string {
-	result := make([]byte, length)
-	for i := range result {
-		result[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(result)
-}
-
 const sessionkey = "__session__"
-
-type User struct {
-	ID    string
-	Email string
-}
 
 func Login(
 	rw http.ResponseWriter,
@@ -272,7 +236,7 @@ func Login(
 
 		return
 	case http.MethodPost:
-		userKV, err := cloudflare.NewKVNamespace(userKVNS)
+		userKV, err := cloudflare.NewKVNamespace(database.KVNSUser)
 		if err != nil {
 			slog.Error("failed to create user KV namespace. error: " + err.Error())
 
@@ -372,7 +336,7 @@ func Callback(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	sessionKV, err := cloudflare.NewKVNamespace(sessionKVNS)
+	sessionKV, err := cloudflare.NewKVNamespace(database.KVNSSession)
 	if err != nil {
 		slog.Error("failed to create session KV namespace. error: " + err.Error())
 
@@ -381,7 +345,7 @@ func Callback(
 		return
 	}
 
-	userKV, err := cloudflare.NewKVNamespace(userKVNS)
+	userKV, err := cloudflare.NewKVNamespace(database.KVNSUser)
 	if err != nil {
 		slog.Error("failed to create user KV namespace. error: " + err.Error())
 
@@ -390,7 +354,7 @@ func Callback(
 		return
 	}
 
-	codeKV, err := cloudflare.NewKVNamespace(codeKVNS)
+	codeKV, err := cloudflare.NewKVNamespace(database.KVNSCode)
 	if err != nil {
 		slog.Error("failed to create code KV namespace. error: " + err.Error())
 
@@ -458,7 +422,7 @@ func Callback(
 		slog.Error("failed to delete user. error: " + err.Error())
 	}
 
-	code := GenerateID(15)
+	code := rand.Text()
 
 	if err := codeKV.PutString(code, userStr, nil); err != nil {
 		redirectBuf := bytes.Buffer{}
@@ -512,18 +476,7 @@ func Token(
 
 	switch req.FormValue("grant_type") {
 	case string(api.TokenRequestSchemaGrantTypeAuthorizationCode):
-		db, err := sql.Open("d1", "DB")
-		if err != nil {
-			slog.Error("failed to open d1. error: " + err.Error())
-
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		queries := schema.New(db)
-
-		codeKV, err := cloudflare.NewKVNamespace(codeKVNS)
+		codeKV, err := cloudflare.NewKVNamespace(database.KVNSCode)
 		if err != nil {
 			slog.Error("failed to create code KV namespace. error: " + err.Error())
 
@@ -542,17 +495,13 @@ func Token(
 				Error: api.TokenErrorTypeInvalidRequest,
 			}
 
-			buf := bytes.Buffer{}
-
-			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			if err := json.NewEncoder(rw).Encode(res); err != nil {
 				slog.Error("failed to encode token error. error: " + err.Error())
 
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
 			}
-
-			rw.Write(buf.Bytes())
 
 			rw.WriteHeader(http.StatusBadRequest)
 
@@ -565,7 +514,7 @@ func Token(
 
 		userBt, _ := base64.StdEncoding.DecodeString(userStr)
 
-		user := User{}
+		user := core.User{}
 
 		if err := json.NewDecoder(bytes.NewReader(userBt)).Decode(&user); err != nil {
 			slog.Error("failed to decode user. error: " + err.Error())
@@ -577,7 +526,7 @@ func Token(
 
 		cid := req.FormValue("client_id")
 
-		cli, err := queries.FindClientByID(req.Context(), cid)
+		cli, err := schema.New(database.D1).FindClientByID(req.Context(), cid)
 		if err != nil {
 			slog.Warn("failed to find client. error: " + err.Error())
 
@@ -585,17 +534,13 @@ func Token(
 				Error: api.TokenErrorTypeInvalidClient,
 			}
 
-			buf := bytes.Buffer{}
-
-			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			if err := json.NewEncoder(rw).Encode(res); err != nil {
 				slog.Error("failed to encode token error. error: " + err.Error())
 
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
 			}
-
-			rw.Write(buf.Bytes())
 
 			rw.WriteHeader(http.StatusBadRequest)
 
@@ -609,17 +554,13 @@ func Token(
 				Error: api.TokenErrorTypeInvalidClient,
 			}
 
-			buf := bytes.Buffer{}
-
-			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			if err := json.NewEncoder(rw).Encode(res); err != nil {
 				slog.Error("failed to encode token error. error: " + err.Error())
 
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
 			}
-
-			rw.Write(buf.Bytes())
 
 			rw.WriteHeader(http.StatusBadRequest)
 		}
@@ -631,17 +572,13 @@ func Token(
 				Error: api.TokenErrorTypeInvalidClient,
 			}
 
-			buf := bytes.Buffer{}
-
-			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			if err := json.NewEncoder(rw).Encode(res); err != nil {
 				slog.Error("failed to encode token error. error: " + err.Error())
 
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
 			}
-
-			rw.Write(buf.Bytes())
 
 			rw.WriteHeader(http.StatusBadRequest)
 		}
@@ -654,17 +591,13 @@ func Token(
 					Error: api.TokenErrorTypeInvalidClient,
 				}
 
-				buf := bytes.Buffer{}
-
-				if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				if err := json.NewEncoder(rw).Encode(res); err != nil {
 					slog.Error("failed to encode token error. error: " + err.Error())
 
 					http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 					return
 				}
-
-				rw.Write(buf.Bytes())
 
 				rw.WriteHeader(http.StatusBadRequest)
 
@@ -679,7 +612,7 @@ func Token(
 
 			slog.InfoContext(req.Context(), "client public key: "+cli.DerPublicKeyBase64)
 
-			pubkey, err := token.DecodeDERPublicKeyBase64(cli.DerPublicKeyBase64)
+			pubkey, err := core.DecodeDERPublicKeyBase64(cli.DerPublicKeyBase64)
 			if err != nil {
 				slog.Error("failed to decode der public key base64. error: " + err.Error())
 
@@ -688,7 +621,7 @@ func Token(
 				return
 			}
 
-			claims, err := token.ValidateClientAssertion(cas, pubkey)
+			claims, err := core.ValidateClientAssertion(cas, pubkey)
 			if err != nil {
 				slog.Warn("failed to validate token. error: " + err.Error())
 
@@ -696,17 +629,13 @@ func Token(
 					Error: api.TokenErrorTypeInvalidClient,
 				}
 
-				buf := bytes.Buffer{}
-
-				if err := json.NewEncoder(&buf).Encode(res); err != nil {
+				if err := json.NewEncoder(rw).Encode(res); err != nil {
 					slog.Error("failed to encode token error. error: " + err.Error())
 
 					http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 					return
 				}
-
-				rw.Write(buf.Bytes())
 
 				rw.WriteHeader(http.StatusBadRequest)
 
@@ -727,17 +656,13 @@ func Token(
 				Error: api.TokenErrorTypeInvalidRequest,
 			}
 
-			buf := bytes.Buffer{}
-
-			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			if err := json.NewEncoder(rw).Encode(res); err != nil {
 				slog.Error("failed to encode token error. error: " + err.Error())
 
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
 			}
-
-			rw.Write(buf.Bytes())
 
 			rw.WriteHeader(http.StatusBadRequest)
 
@@ -750,13 +675,13 @@ func Token(
 
 		iss := req.URL.Scheme + "://" + req.Host
 
-		at := token.GenerateAccessToken(iss, user.ID)
+		at := core.GenerateAccessToken(iss, user.ID)
 
-		it := token.GenerateIDToken(iss, user.ID, cid, "")
+		it := core.GenerateIDToken(iss, user.ID, cid, "")
 
-		rt := GenerateID(20)
+		rt := rand.Text()
 
-		rtKV, err := cloudflare.NewKVNamespace(refreshTokenKVNS)
+		rtKV, err := cloudflare.NewKVNamespace(database.KVNSRefreshToken)
 		if err != nil {
 			slog.Error("failed to create refresh token KV namespace. error: " + err.Error())
 
@@ -773,7 +698,7 @@ func Token(
 			return
 		}
 
-		key, err := queries.FindJwkSetByID(req.Context(), "1234567890")
+		key, err := schema.New(database.D1).FindJwkSetByID(req.Context(), "1234567890")
 		if err != nil {
 			slog.Warn("failed to find jwk set. error: " + err.Error())
 
@@ -800,7 +725,7 @@ func Token(
 			return
 		}
 
-		sign := token.SignKey{
+		sign := core.SignKey{
 			ID:  key.ID,
 			Key: parsed,
 		}
@@ -813,9 +738,7 @@ func Token(
 			TokenType:    "Bearer",
 		}
 
-		buf := bytes.Buffer{}
-
-		if err := json.NewEncoder(&buf).Encode(res); err != nil {
+		if err := json.NewEncoder(rw).Encode(res); err != nil {
 			slog.Error("failed to encode token response. error: " + err.Error())
 
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -823,13 +746,11 @@ func Token(
 			return
 		}
 
-		rw.Write(buf.Bytes())
-
 		return
 	case string(api.TokenRequestSchemaGrantTypeRefreshToken):
 		ort := req.FormValue("refresh_token")
 
-		rtKV, err := cloudflare.NewKVNamespace(refreshTokenKVNS)
+		rtKV, err := cloudflare.NewKVNamespace(database.KVNSRefreshToken)
 		if err != nil {
 			slog.Error("failed to create refresh token KV namespace. error: " + err.Error())
 
@@ -846,17 +767,13 @@ func Token(
 				Error: api.TokenErrorTypeInvalidRequest,
 			}
 
-			buf := bytes.Buffer{}
-
-			if err := json.NewEncoder(&buf).Encode(res); err != nil {
+			if err := json.NewEncoder(rw).Encode(res); err != nil {
 				slog.Error("failed to encode token error. error: " + err.Error())
 
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 				return
 			}
-
-			rw.Write(buf.Bytes())
 
 			rw.WriteHeader(http.StatusBadRequest)
 
@@ -865,7 +782,7 @@ func Token(
 
 		userBt, _ := base64.StdEncoding.DecodeString(userStr)
 
-		user := User{}
+		user := core.User{}
 
 		if err := json.NewDecoder(bytes.NewReader(userBt)).Decode(&user); err != nil {
 			slog.Error("failed to decode user. error: " + err.Error())
@@ -877,9 +794,9 @@ func Token(
 
 		iss := req.URL.Scheme + "://" + req.Host
 
-		at := token.GenerateAccessToken(iss, user.ID)
+		at := core.GenerateAccessToken(iss, user.ID)
 
-		nrt := GenerateID(20)
+		nrt := rand.Text()
 
 		if err := rtKV.PutString(nrt, userStr, nil); err != nil {
 			slog.Error("failed to put new refresh token. error: " + err.Error())
@@ -901,17 +818,13 @@ func Token(
 			TokenType:    "Bearer",
 		}
 
-		buf := bytes.Buffer{}
-
-		if err := json.NewEncoder(&buf).Encode(res); err != nil {
+		if err := json.NewEncoder(rw).Encode(res); err != nil {
 			slog.Error("failed to encode token response. error: " + err.Error())
 
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
-
-		rw.Write(buf.Bytes())
 
 		return
 	default:
@@ -921,15 +834,11 @@ func Token(
 			Error: api.TokenErrorTypeUnsupportedGrantType,
 		}
 
-		buf := bytes.Buffer{}
-
-		if err := json.NewEncoder(&buf).Encode(res); err != nil {
+		if err := json.NewEncoder(rw).Encode(res); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
-
-		rw.Write(buf.Bytes())
 
 		rw.WriteHeader(http.StatusBadRequest)
 
@@ -941,12 +850,6 @@ func UserInfo(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	if req.Method != http.MethodGet && req.Method != http.MethodPost {
-		http.Error(rw, "Method Not Allowed", http.StatusMethodNotAllowed)
-
-		return
-	}
-
 	bearer := req.Header.Get("Authorization")
 
 	tokens := strings.Split(bearer, " ")
@@ -967,7 +870,7 @@ func UserInfo(
 		return
 	}
 
-	at, err := token.ParceAccessToken(tokens[1], "secret")
+	at, err := core.ParceAccessToken(tokens[1], "secret")
 	if err != nil {
 		slog.Warn("failed to parse access token. error: " + err.Error())
 
@@ -976,18 +879,7 @@ func UserInfo(
 		return
 	}
 
-	db, err := sql.Open("d1", "DB")
-	if err != nil {
-		slog.Error("failed to open d1. error: " + err.Error())
-
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	queries := schema.New(db)
-
-	user, err := queries.FindUserByID(req.Context(), at.Sub)
+	user, err := schema.New(database.D1).FindUserByID(req.Context(), at.Sub)
 	if err != nil {
 		slog.Warn("failed to find user. error: " + err.Error() + " sub: " + at.Sub)
 
@@ -1001,41 +893,20 @@ func UserInfo(
 		Email: user.Email,
 	}
 
-	buf := bytes.Buffer{}
-
-	if err := json.NewEncoder(&buf).Encode(res); err != nil {
+	if err := json.NewEncoder(rw).Encode(res); err != nil {
 		slog.Error("failed to encode user info response. error: " + err.Error())
 
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
-
-	rw.Write(buf.Bytes())
 }
 
 func Certs(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	if req.Method != http.MethodGet {
-		http.Error(rw, "Method Not Allowed", http.StatusMethodNotAllowed)
-
-		return
-	}
-
-	db, err := sql.Open("d1", "DB")
-	if err != nil {
-		slog.Error("failed to open d1. error: " + err.Error())
-
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	queries := schema.New(db)
-
-	keys, err := queries.ListJwkSet(req.Context())
+	keys, err := schema.New(database.D1).ListJwkSet(req.Context())
 	if err != nil {
 		slog.Error("failed to list jwk set. error: " + err.Error())
 
@@ -1065,7 +936,7 @@ func Certs(
 			return
 		}
 
-		sign := token.SignKey{
+		sign := core.SignKey{
 			ID:  key.ID,
 			Key: parsed,
 		}
@@ -1084,28 +955,18 @@ func Certs(
 		Keys: jwksets,
 	}
 
-	buf := bytes.Buffer{}
-
-	if err := json.NewEncoder(&buf).Encode(res); err != nil {
+	if err := json.NewEncoder(rw).Encode(res); err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
-
-	rw.Write(buf.Bytes())
 }
 
 func Revoke(
 	rw http.ResponseWriter,
 	req *http.Request,
 ) {
-	if req.Method != http.MethodPost {
-		http.Error(rw, "Method Not Allowed", http.StatusMethodNotAllowed)
-
-		return
-	}
-
-	rtKV, err := cloudflare.NewKVNamespace(refreshTokenKVNS)
+	rtKV, err := cloudflare.NewKVNamespace(database.KVNSRefreshToken)
 	if err != nil {
 		slog.Error("failed to create refresh token KV namespace. error: " + err.Error())
 
@@ -1140,6 +1001,4 @@ func Revoke(
 
 		return
 	}
-
-	rw.Write([]byte("OK"))
 }

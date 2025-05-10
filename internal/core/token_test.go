@@ -1,4 +1,4 @@
-package token_test
+package core_test
 
 import (
 	"crypto/rand"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/otakakot/openid-connect/internal/token"
+	"github.com/otakakot/openid-connect/internal/core"
 )
 
 func TestGenerateAccessToken(t *testing.T) {
@@ -22,7 +22,7 @@ func TestGenerateAccessToken(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want token.AccessToken
+		want core.AccessToken
 	}{
 		{
 			name: "success",
@@ -30,7 +30,7 @@ func TestGenerateAccessToken(t *testing.T) {
 				iss: "issuer@example.com",
 				sub: "test",
 			},
-			want: token.AccessToken{
+			want: core.AccessToken{
 				Iss: "issuer@example.com",
 				Sub: "test",
 			},
@@ -39,7 +39,7 @@ func TestGenerateAccessToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := token.GenerateAccessToken(tt.args.iss, tt.args.sub)
+			got := core.GenerateAccessToken(tt.args.iss, tt.args.sub)
 
 			if !reflect.DeepEqual(got.Sub, tt.want.Sub) {
 				t.Errorf("GenerateAccessToken() = %v, want %v", got.Sub, tt.want.Sub)
@@ -63,18 +63,18 @@ func TestParceAccessToken(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    token.AccessToken
+		want    core.AccessToken
 		wantErr bool
 	}{
 		{
 			name: "success",
 			args: args{
 				str: func() string {
-					return token.GenerateAccessToken("test@example.com", "test").JWT("test")
+					return core.GenerateAccessToken("test@example.com", "test").JWT("test")
 				},
 				sign: "test",
 			},
-			want: token.AccessToken{
+			want: core.AccessToken{
 				Iss: "test@example.com",
 				Sub: "test",
 			},
@@ -88,18 +88,18 @@ func TestParceAccessToken(t *testing.T) {
 				},
 				sign: "test",
 			},
-			want:    token.AccessToken{},
+			want:    core.AccessToken{},
 			wantErr: true,
 		},
 		{
 			name: "failed_for_invalid_sign",
 			args: args{
 				str: func() string {
-					return token.GenerateAccessToken("test@example.com", "test").JWT("test")
+					return core.GenerateAccessToken("test@example.com", "test").JWT("test")
 				},
 				sign: "invalid",
 			},
-			want:    token.AccessToken{},
+			want:    core.AccessToken{},
 			wantErr: true,
 		},
 	}
@@ -108,7 +108,7 @@ func TestParceAccessToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := token.ParceAccessToken(tt.args.str(), tt.args.sign)
+			got, err := core.ParceAccessToken(tt.args.str(), tt.args.sign)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParceAccessToken() error = %v, wantErr %v", err, tt.wantErr)
 
@@ -143,7 +143,7 @@ func TestGenerateIDToken(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want token.IDToken
+		want core.IDToken
 	}{
 		{
 			name: "success",
@@ -153,7 +153,7 @@ func TestGenerateIDToken(t *testing.T) {
 				aud: "audience@example.com",
 				jti: "jwt_id",
 			},
-			want: token.IDToken{
+			want: core.IDToken{
 				Iss: "issuer@example.com",
 				Sub: "subject",
 				Aud: "audience@example.com",
@@ -164,7 +164,7 @@ func TestGenerateIDToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := token.GenerateIDToken(
+			got := core.GenerateIDToken(
 				tt.args.iss,
 				tt.args.sub,
 				tt.args.aud,
@@ -276,7 +276,7 @@ func TestValidateClientAssertion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := token.ValidateClientAssertion(tt.args.tokenStr(), tt.args.publicKey)
+			got, err := core.ValidateClientAssertion(tt.args.tokenStr(), tt.args.publicKey)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidateClientAssertion() error = %v, wantErr %v", err, tt.wantErr)
 				return
