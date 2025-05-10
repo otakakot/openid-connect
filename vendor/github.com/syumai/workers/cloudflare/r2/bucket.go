@@ -1,4 +1,4 @@
-package cloudflare
+package r2
 
 import (
 	"fmt"
@@ -9,31 +9,31 @@ import (
 	"github.com/syumai/workers/internal/jsutil"
 )
 
-// R2Bucket represents interface of Cloudflare Worker's R2 Bucket instance.
+// Bucket represents interface of Cloudflare Worker's R2 Bucket instance.
 //   - https://developers.cloudflare.com/r2/runtime-apis/#bucket-method-definitions
 //   - https://github.com/cloudflare/workers-types/blob/3012f263fb1239825e5f0061b267c8650d01b717/index.d.ts#L1006
-type R2Bucket struct {
+type Bucket struct {
 	instance js.Value
 }
 
-// NewR2Bucket returns R2Bucket for given variable name.
+// NewBucket returns Bucket for given variable name.
 //   - variable name must be defined in wrangler.toml.
 //   - see example: https://github.com/syumai/workers/tree/main/_examples/r2-image-viewer
 //   - if the given variable name doesn't exist on runtime context, returns error.
 //   - This function panics when a runtime context is not found.
-func NewR2Bucket(varName string) (*R2Bucket, error) {
+func NewBucket(varName string) (*Bucket, error) {
 	inst := cfruntimecontext.MustGetRuntimeContextEnv().Get(varName)
 	if inst.IsUndefined() {
 		return nil, fmt.Errorf("%s is undefined", varName)
 	}
-	return &R2Bucket{instance: inst}, nil
+	return &Bucket{instance: inst}, nil
 }
 
-// Head returns the result of `head` call to R2Bucket.
-//   - Body field of *R2Object is always nil for Head call.
+// Head returns the result of `head` call to Bucket.
+//   - Body field of *Object is always nil for Head call.
 //   - if the object for given key doesn't exist, returns nil.
 //   - if a network error happens, returns error.
-func (r *R2Bucket) Head(key string) (*R2Object, error) {
+func (r *Bucket) Head(key string) (*Object, error) {
 	p := r.instance.Call("head", key)
 	v, err := jsutil.AwaitPromise(p)
 	if err != nil {
@@ -42,13 +42,13 @@ func (r *R2Bucket) Head(key string) (*R2Object, error) {
 	if v.IsNull() {
 		return nil, nil
 	}
-	return toR2Object(v)
+	return toObject(v)
 }
 
-// Get returns the result of `get` call to R2Bucket.
+// Get returns the result of `get` call to Bucket.
 //   - if the object for given key doesn't exist, returns nil.
 //   - if a network error happens, returns error.
-func (r *R2Bucket) Get(key string) (*R2Object, error) {
+func (r *Bucket) Get(key string) (*Object, error) {
 	p := r.instance.Call("get", key)
 	v, err := jsutil.AwaitPromise(p)
 	if err != nil {
@@ -57,23 +57,23 @@ func (r *R2Bucket) Get(key string) (*R2Object, error) {
 	if v.IsNull() {
 		return nil, nil
 	}
-	return toR2Object(v)
+	return toObject(v)
 }
 
-// R2PutOptions represents Cloudflare R2 put options.
+// PutOptions represents Cloudflare R2 put options.
 //   - https://github.com/cloudflare/workers-types/blob/3012f263fb1239825e5f0061b267c8650d01b717/index.d.ts#L1128
-type R2PutOptions struct {
-	HTTPMetadata   R2HTTPMetadata
+type PutOptions struct {
+	HTTPMetadata   HTTPMetadata
 	CustomMetadata map[string]string
 	MD5            string
 }
 
-func (opts *R2PutOptions) toJS() js.Value {
+func (opts *PutOptions) toJS() js.Value {
 	if opts == nil {
 		return js.Undefined()
 	}
 	obj := jsutil.NewObject()
-	if opts.HTTPMetadata != (R2HTTPMetadata{}) {
+	if opts.HTTPMetadata != (HTTPMetadata{}) {
 		obj.Set("httpMetadata", opts.HTTPMetadata.toJS())
 	}
 	if opts.CustomMetadata != nil {
@@ -92,11 +92,11 @@ func (opts *R2PutOptions) toJS() js.Value {
 	return obj
 }
 
-// Put returns the result of `put` call to R2Bucket.
+// Put returns the result of `put` call to Bucket.
 //   - This method copies all bytes into memory for implementation restriction.
-//   - Body field of *R2Object is always nil for Put call.
+//   - Body field of *Object is always nil for Put call.
 //   - if a network error happens, returns error.
-func (r *R2Bucket) Put(key string, value io.ReadCloser, opts *R2PutOptions) (*R2Object, error) {
+func (r *Bucket) Put(key string, value io.ReadCloser, opts *PutOptions) (*Object, error) {
 	// fetch body cannot be ReadableStream. see: https://github.com/whatwg/fetch/issues/1438
 	b, err := io.ReadAll(value)
 	if err != nil {
@@ -110,12 +110,12 @@ func (r *R2Bucket) Put(key string, value io.ReadCloser, opts *R2PutOptions) (*R2
 	if err != nil {
 		return nil, err
 	}
-	return toR2Object(v)
+	return toObject(v)
 }
 
-// Delete returns the result of `delete` call to R2Bucket.
+// Delete returns the result of `delete` call to Bucket.
 //   - if a network error happens, returns error.
-func (r *R2Bucket) Delete(key string) error {
+func (r *Bucket) Delete(key string) error {
 	p := r.instance.Call("delete", key)
 	if _, err := jsutil.AwaitPromise(p); err != nil {
 		return err
@@ -123,13 +123,13 @@ func (r *R2Bucket) Delete(key string) error {
 	return nil
 }
 
-// List returns the result of `list` call to R2Bucket.
+// List returns the result of `list` call to Bucket.
 //   - if a network error happens, returns error.
-func (r *R2Bucket) List() (*R2Objects, error) {
+func (r *Bucket) List() (*Objects, error) {
 	p := r.instance.Call("list")
 	v, err := jsutil.AwaitPromise(p)
 	if err != nil {
 		return nil, err
 	}
-	return toR2Objects(v)
+	return toObjects(v)
 }

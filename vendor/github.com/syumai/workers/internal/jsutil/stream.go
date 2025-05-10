@@ -111,13 +111,20 @@ func ConvertReadableStreamToReadCloser(stream js.Value) io.ReadCloser {
 //   - ReadableStream: https://developer.mozilla.org/docs/Web/API/ReadableStream
 //   - This implementation is based on: https://deno.land/std@0.139.0/streams/conversion.ts#L230
 type readerToReadableStream struct {
-	reader   io.ReadCloser
-	chunkBuf []byte
+	initialized bool
+	reader      io.ReadCloser
+	chunkBuf    []byte
 }
 
 // Pull implements ReadableStream's pull method.
 //   - https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/ReadableStream#pull
 func (rs *readerToReadableStream) Pull(controller js.Value) error {
+	if !rs.initialized {
+		ua := NewUint8Array(0)
+		controller.Call("enqueue", ua)
+		rs.initialized = true
+		return nil
+	}
 	n, err := rs.reader.Read(rs.chunkBuf)
 	if n != 0 {
 		ua := NewUint8Array(n)
@@ -201,11 +208,12 @@ func ConvertReaderToReadableStream(reader io.ReadCloser) js.Value {
 
 // ConvertReaderToFixedLengthStream converts io.ReadCloser to TransformStream.
 func ConvertReaderToFixedLengthStream(rc io.ReadCloser, size int64) js.Value {
-	stream := FixedLengthStreamClass.New(js.ValueOf(size))
+	stream := MaybeFixedLengthStreamClass.New(js.ValueOf(size))
 	go func(writer js.Value) {
 		defer rc.Close()
 
 		chunk := make([]byte, min(size, defaultChunkSize))
+		AwaitPromise(writer.Get("ready"))
 		for {
 			n, err := rc.Read(chunk)
 			if n > 0 {
@@ -214,6 +222,7 @@ func ConvertReaderToFixedLengthStream(rc io.ReadCloser, size int64) js.Value {
 				writer.Call("write", b)
 			}
 			if err != nil {
+				AwaitPromise(writer.Get("ready"))
 				writer.Call("close")
 				return
 			}

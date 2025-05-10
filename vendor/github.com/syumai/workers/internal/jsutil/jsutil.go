@@ -16,11 +16,15 @@ var (
 	HeadersClass           = js.Global().Get("Headers")
 	ArrayClass             = js.Global().Get("Array")
 	Uint8ArrayClass        = js.Global().Get("Uint8Array")
+	Uint8ClampedArrayClass = js.Global().Get("Uint8ClampedArray")
 	ErrorClass             = js.Global().Get("Error")
 	ReadableStreamClass    = js.Global().Get("ReadableStream")
-	FixedLengthStreamClass = js.Global().Get("FixedLengthStream")
 	DateClass              = js.Global().Get("Date")
 	Null                   = js.ValueOf(nil)
+	// MaybeFixedLengthStreamClass is a class for FixedLengthStream.
+	// * This class is only available in Cloudflare Workers.
+	// * If this class is not available, the value will be undefined.
+	MaybeFixedLengthStreamClass = js.Global().Get("FixedLengthStream")
 )
 
 func NewObject() js.Value {

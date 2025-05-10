@@ -1,4 +1,4 @@
-package cloudflare
+package r2
 
 import (
 	"errors"
@@ -10,9 +10,9 @@ import (
 	"github.com/syumai/workers/internal/jsutil"
 )
 
-// R2Object represents Cloudflare R2 object.
+// Object represents Cloudflare R2 object.
 //   - https://github.com/cloudflare/workers-types/blob/3012f263fb1239825e5f0061b267c8650d01b717/index.d.ts#L1094
-type R2Object struct {
+type Object struct {
 	instance       js.Value
 	Key            string
 	Version        string
@@ -20,34 +20,34 @@ type R2Object struct {
 	ETag           string
 	HTTPETag       string
 	Uploaded       time.Time
-	HTTPMetadata   R2HTTPMetadata
+	HTTPMetadata   HTTPMetadata
 	CustomMetadata map[string]string
-	// Body is a body of R2Object.
+	// Body is a body of Object.
 	// This value is nil for the result of the `Head` or `Put` method.
 	Body io.Reader
 }
 
 // TODO: implement
 //   - https://github.com/cloudflare/workers-types/blob/3012f263fb1239825e5f0061b267c8650d01b717/index.d.ts#L1106
-// func (o *R2Object) WriteHTTPMetadata(headers http.Header) {
+// func (o *Object) WriteHTTPMetadata(headers http.Header) {
 // }
 
-func (o *R2Object) BodyUsed() (bool, error) {
+func (o *Object) BodyUsed() (bool, error) {
 	v := o.instance.Get("bodyUsed")
 	if v.IsUndefined() {
-		return false, errors.New("bodyUsed doesn't exist for this R2Object")
+		return false, errors.New("bodyUsed doesn't exist for this Object")
 	}
 	return v.Bool(), nil
 }
 
-// toR2Object converts JavaScript side's R2Object to *R2Object.
+// toObject converts JavaScript side's Object to *Object.
 //   - https://github.com/cloudflare/workers-types/blob/3012f263fb1239825e5f0061b267c8650d01b717/index.d.ts#L1094
-func toR2Object(v js.Value) (*R2Object, error) {
+func toObject(v js.Value) (*Object, error) {
 	uploaded, err := jsutil.DateToTime(v.Get("uploaded"))
 	if err != nil {
 		return nil, fmt.Errorf("error converting uploaded: %w", err)
 	}
-	r2Meta, err := toR2HTTPMetadata(v.Get("httpMetadata"))
+	r2Meta, err := toHTTPMetadata(v.Get("httpMetadata"))
 	if err != nil {
 		return nil, fmt.Errorf("error converting httpMetadata: %w", err)
 	}
@@ -56,7 +56,7 @@ func toR2Object(v js.Value) (*R2Object, error) {
 	if !bodyVal.IsUndefined() {
 		body = jsutil.ConvertReadableStreamToReadCloser(v.Get("body"))
 	}
-	return &R2Object{
+	return &Object{
 		instance:       v,
 		Key:            v.Get("key").String(),
 		Version:        v.Get("version").String(),
@@ -70,9 +70,9 @@ func toR2Object(v js.Value) (*R2Object, error) {
 	}, nil
 }
 
-// R2HTTPMetadata represents metadata of R2Object.
+// HTTPMetadata represents metadata of Object.
 //   - https://github.com/cloudflare/workers-types/blob/3012f263fb1239825e5f0061b267c8650d01b717/index.d.ts#L1053
-type R2HTTPMetadata struct {
+type HTTPMetadata struct {
 	ContentType        string
 	ContentLanguage    string
 	ContentDisposition string
@@ -81,15 +81,15 @@ type R2HTTPMetadata struct {
 	CacheExpiry        time.Time
 }
 
-func toR2HTTPMetadata(v js.Value) (R2HTTPMetadata, error) {
+func toHTTPMetadata(v js.Value) (HTTPMetadata, error) {
 	if v.IsUndefined() || v.IsNull() {
-		return R2HTTPMetadata{}, nil
+		return HTTPMetadata{}, nil
 	}
 	cacheExpiry, err := jsutil.MaybeDate(v.Get("cacheExpiry"))
 	if err != nil {
-		return R2HTTPMetadata{}, fmt.Errorf("error converting cacheExpiry: %w", err)
+		return HTTPMetadata{}, fmt.Errorf("error converting cacheExpiry: %w", err)
 	}
-	return R2HTTPMetadata{
+	return HTTPMetadata{
 		ContentType:        jsutil.MaybeString(v.Get("contentType")),
 		ContentLanguage:    jsutil.MaybeString(v.Get("contentLanguage")),
 		ContentDisposition: jsutil.MaybeString(v.Get("contentDisposition")),
@@ -99,7 +99,7 @@ func toR2HTTPMetadata(v js.Value) (R2HTTPMetadata, error) {
 	}, nil
 }
 
-func (md *R2HTTPMetadata) toJS() js.Value {
+func (md *HTTPMetadata) toJS() js.Value {
 	obj := jsutil.NewObject()
 	kv := map[string]string{
 		"contentType":        md.ContentType,

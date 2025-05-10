@@ -26,8 +26,9 @@ dev: ## Run development server.
 
 .PHONY: build
 build: ## Build to WebAssembly.
-	@go run github.com/syumai/workers/cmd/workers-assets-gen@v0.23.1
-	@tinygo build -o ./build/app.wasm -target wasm -no-debug ./...
+	@go run github.com/syumai/workers/cmd/workers-assets-gen@v0.28.1 -mode=go
+	@GOOS=js GOARCH=wasm go build -o ./build/app.wasm .
+
 
 .PHONY: deploy
 deploy: ## Deploy to Cloudflare Workers.

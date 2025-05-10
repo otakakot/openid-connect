@@ -31,9 +31,9 @@
 * [x] FetchEvent
 * [x] Cron Triggers
 * [x] TCP Sockets
-* [ ] Queues
+* [x] Queues
   - [x] Producer
-  - [ ] Consumer
+  - [x] Consumer
 
 ## Installation
 
@@ -62,28 +62,56 @@ func main() {
 ```
 
 For concrete examples, see `_examples` directory.
-Currently, all examples use tinygo instead of Go due to binary size issues.
 
 ## Quick Start
 
-First, please install the following tools:
+* You can easily create and deploy a project from `Deploy to Cloudflare` button.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fsyumai%2Fworker-go-deploy)
+
+* If you want to create a project manually, please follow the guide below.
+
+### Requirements
 
 * Node.js (and npm)
-* [wrangler](https://developers.cloudflare.com/workers/wrangler/)
-  - You can install it by running `npm install -g wrangler`.
-* tinygo 0.29.0 or later
-* [gonew](https://pkg.go.dev/golang.org/x/tools/cmd/gonew)
-  - You can install it by running `go install golang.org/x/tools/cmd/gonew@latest`
+* Go 1.24.0 or later
 
-After installation, please run the following commands.
+### Create a new Worker project
+
+Run the following command:
 
 ```console
-gonew github.com/syumai/workers/_templates/cloudflare/worker-tinygo your.module/my-app # e.g. github.com/syumai/my-app
-cd my-app
-go mod tidy
-make dev # start running dev server
-curl http://localhost:8787/hello # outputs "Hello!"
+npm create cloudflare@latest -- --template github.com/syumai/workers/_templates/cloudflare/worker-go
 ```
+
+### Initialize the project
+
+1. Navigate to your new project directory:
+
+```console
+cd my-app
+```
+
+2. Initialize Go modules:
+
+```console
+go mod init
+go mod tidy
+```
+
+3. Start the development server:
+
+```console
+npm start
+```
+
+4. Verify the worker is running:
+
+```console
+curl http://localhost:8787/hello
+```
+
+You will see **"Hello!"** as the response.
 
 If you want a more detailed description, please refer to the README.md file in the generated directory.
 
@@ -97,9 +125,9 @@ To deploy a Worker, the following steps are required.
 * Build a Wasm binary.
 * Upload a Wasm binary with a JavaScript code to load and instantiate Wasm (for entry point).
 
-The [worker-tinygo template](https://github.com/syumai/workers/tree/main/_templates/cloudflare/worker-tinygo) contains all the required files, so I recommend using this template.
+The [worker-go template](https://github.com/syumai/workers/tree/main/_templates/cloudflare/worker-go) contains all the required files, so I recommend using this template.
 
-The [worker-go template](https://github.com/syumai/workers/tree/main/_templates/cloudflare/worker-go) (using regular Go, not tinygo) is also available, but it requires a paid plan of Cloudflare Workers (due to the large binary size).
+But Go (not TinyGo) with many dependencies may exceed the size limit of the Worker (3MB for free plan, 10MB for paid plan). In that case, you can use the [TinyGo template](https://github.com/syumai/workers/tree/main/_templates/cloudflare/worker-tinygo) instead.
 
 ### Where can I have discussions about contributions, or ask questions about how to use the library?
 

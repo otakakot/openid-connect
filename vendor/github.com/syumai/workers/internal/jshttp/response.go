@@ -52,13 +52,14 @@ func newJSResponse(statusCode int, headers http.Header, contentLength int64, bod
 		status == http.StatusNotModified {
 		return jsutil.ResponseClass.New(jsutil.Null, respInit)
 	}
-	var readableStream js.Value
-	if rawBody != nil {
-		readableStream = *rawBody
-	} else if contentLength > 0 {
-		readableStream = jsutil.ConvertReaderToFixedLengthStream(body, contentLength)
-	} else {
-		readableStream = jsutil.ConvertReaderToReadableStream(body)
-	}
+	readableStream := func() js.Value {
+		if rawBody != nil {
+			return *rawBody
+		}
+		if !jsutil.MaybeFixedLengthStreamClass.IsUndefined() && contentLength > 0 {
+			return jsutil.ConvertReaderToFixedLengthStream(body, contentLength)
+		}
+		return jsutil.ConvertReaderToReadableStream(body)
+	}()
 	return jsutil.ResponseClass.New(readableStream, respInit)
 }
