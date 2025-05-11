@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/x509"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -213,7 +212,60 @@ func Login(
 ) {
 	switch req.Method {
 	case http.MethodGet:
-		rw.Write([]byte(view))
+		session, err := req.Cookie(core.CookeySession)
+		if err != nil {
+			rw.Write([]byte(view))
+
+			return
+		}
+
+		sid, err := req.Cookie(core.CookeyState)
+		if err != nil {
+			slog.Warn("failed to get session cookie. error: " + err.Error())
+
+			// TODO: redirect
+			http.Error(rw, err.Error(), http.StatusUnauthorized)
+
+			return
+		}
+
+		user, err := schema.New(database.D1).FindUserByID(req.Context(), session.Value)
+		if err != nil {
+			slog.Warn("failed to find user. error: " + err.Error() + " email: " + req.FormValue("email"))
+
+			http.Error(rw, err.Error(), http.StatusUnauthorized)
+
+			return
+		}
+
+		userBuf := bytes.Buffer{}
+
+		if err := json.NewEncoder(&userBuf).Encode(user); err != nil {
+			slog.Error("failed to encode user. error: " + err.Error())
+
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		userKV, err := cloudflare.NewKVNamespace(database.KVNSUser)
+		if err != nil {
+			slog.Error("failed to create user KV namespace. error: " + err.Error())
+
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		if err := userKV.PutString(sid.Value, base64.StdEncoding.EncodeToString(userBuf.Bytes()), nil); err != nil {
+			slog.Error("failed to put user. error: " + err.Error())
+
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		http.Redirect(rw, req, "/callback", http.StatusFound)
 
 		return
 	case http.MethodPost:
@@ -236,18 +288,7 @@ func Login(
 			return
 		}
 
-		db, err := sql.Open("d1", "DB")
-		if err != nil {
-			slog.Error("failed to open d1. error: " + err.Error())
-
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		queries := schema.New(db)
-
-		user, err := queries.FindUserByEmail(req.Context(), req.FormValue("email"))
+		user, err := schema.New(database.D1).FindUserByEmail(req.Context(), req.FormValue("email"))
 		if err != nil {
 			slog.Warn("failed to find user. error: " + err.Error() + " email: " + req.FormValue("email"))
 
