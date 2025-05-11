@@ -47,14 +47,6 @@ func OpenIDConfiguration(
 	}
 }
 
-type Session struct {
-	ResponseType string
-	ClientID     string
-	RedirectURI  string
-	Scope        string
-	State        string
-}
-
 func Authorize(
 	rw http.ResponseWriter,
 	req *http.Request,
@@ -142,8 +134,11 @@ func Authorize(
 	// TODO: validate scope
 
 	st := req.URL.Query().Get("state")
+	if st == "" {
+		st = rand.Text()
+	}
 
-	session := Session{
+	session := core.State{
 		ResponseType: rt,
 		ClientID:     cid,
 		RedirectURI:  red,
@@ -195,24 +190,22 @@ func Authorize(
 		return
 	}
 
+	http.SetCookie(rw, &http.Cookie{
+		Name:     core.CookeyState,
+		Value:    id,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
 	redirectBuf := bytes.Buffer{}
 
 	redirectBuf.WriteString("/login")
-
-	values := url.Values{
-		"id": {id},
-	}
-
-	redirectBuf.WriteByte('?')
-
-	redirectBuf.WriteString(values.Encode())
 
 	redirect, _ := url.ParseRequestURI(redirectBuf.String())
 
 	http.Redirect(rw, req, redirect.String(), http.StatusFound)
 }
-
-const sessionkey = "__session__"
 
 func Login(
 	rw http.ResponseWriter,
@@ -220,18 +213,6 @@ func Login(
 ) {
 	switch req.Method {
 	case http.MethodGet:
-		id := req.URL.Query().Get("id")
-
-		cookie := http.Cookie{
-			Name:     sessionkey,
-			Value:    id,
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteStrictMode,
-		}
-
-		http.SetCookie(rw, &cookie)
-
 		rw.Write([]byte(view))
 
 		return
@@ -245,7 +226,7 @@ func Login(
 			return
 		}
 
-		sid, err := req.Cookie(sessionkey)
+		sid, err := req.Cookie(core.CookeyState)
 		if err != nil {
 			slog.Warn("failed to get session cookie. error: " + err.Error())
 
@@ -282,6 +263,15 @@ func Login(
 
 			return
 		}
+
+		http.SetCookie(rw, &http.Cookie{
+			Name:     core.CookeySession,
+			Value:    user.ID,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteDefaultMode,
+			MaxAge:   60 * 60 * 24 * 180,
+		})
 
 		userBuf := bytes.Buffer{}
 
@@ -363,7 +353,7 @@ func Callback(
 		return
 	}
 
-	sid, err := req.Cookie(sessionkey)
+	sid, err := req.Cookie(core.CookeyState)
 	if err != nil {
 		slog.Warn("failed to get session cookie. error: " + err.Error())
 
@@ -383,7 +373,7 @@ func Callback(
 
 	sessionBt, _ := base64.StdEncoding.DecodeString(sessionStr)
 
-	session := Session{}
+	session := core.State{}
 
 	if err := json.NewDecoder(bytes.NewReader(sessionBt)).Decode(&session); err != nil {
 		slog.Error("failed to decode session. error: " + err.Error())
@@ -445,7 +435,7 @@ func Callback(
 	}
 
 	cookie := http.Cookie{
-		Name:   sessionkey,
+		Name:   core.CookeyState,
 		Value:  "",
 		MaxAge: -1,
 	}
@@ -698,7 +688,7 @@ func Token(
 			return
 		}
 
-		key, err := schema.New(database.D1).FindJwkSetByID(req.Context(), "1234567890")
+		keys, err := schema.New(database.D1).ListJwkSet(req.Context())
 		if err != nil {
 			slog.Warn("failed to find jwk set. error: " + err.Error())
 
@@ -707,7 +697,7 @@ func Token(
 			return
 		}
 
-		pk, err := base64.StdEncoding.DecodeString(key.DerPrivateKeyBase64)
+		pk, err := base64.StdEncoding.DecodeString(keys[0].DerPrivateKeyBase64)
 		if err != nil {
 			slog.Error("failed to decode der private key base64. error: " + err.Error())
 
@@ -726,7 +716,7 @@ func Token(
 		}
 
 		sign := core.SignKey{
-			ID:  key.ID,
+			ID:  keys[0].ID,
 			Key: parsed,
 		}
 
