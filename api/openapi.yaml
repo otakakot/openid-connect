@@ -1,0 +1,521 @@
+openapi: 3.0.3
+info:
+  title: OpenID Connect APP
+  description: |-
+    This is the OpenID Connect API documentation.
+  termsOfService: https://localhost:8787
+  contact:
+    email: kotaro.otaka@example.com
+  license:
+    name: MIT
+  version: 0.0.1
+externalDocs:
+  description: OpenID Connect Core 1.0 incorporating errata set 1
+  url: https://openid-foundation-japan.github.io/openid-connect-core-1_0.ja.html
+servers:
+  - url: http://localhost:8787
+tags:
+  - name: OIDC
+    description: OIDC
+  - name: IdP
+    description: IdP
+paths:
+  /.well-known/openid-configuration:
+    get:
+      tags:
+        - OIDC
+      summary: OpenID Provider Configuration
+      description: OpenID Provider Configuration
+      operationId: openIDConfiguration
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenIDConfigurationResponseSchema"
+        default:
+          description: Internal Server Error
+  /authorize:
+    get:
+      tags:
+        - OIDC
+      summary: Authorization Endpoint
+      description: |
+        Authorization Endpoint
+        ref: https://openid-foundation-japan.github.io/rfc6749.ja.html#code-authz-req
+      operationId: authorize
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          description: response_type
+          schema:
+            type: string
+            enum:
+              - code
+        - name: client_id
+          in: query
+          required: true
+          description: client_id
+          schema:
+            type: string
+            format: uri
+            example: http://localhost:8080
+        - name: redirect_uri
+          in: query
+          required: false
+          description: http://localhost:8080/callback
+          schema:
+            type: string
+            format: uri
+            example: http://localhost:8080/callback
+        - name: scope
+          in: query
+          required: false
+          description: openid
+          schema:
+            type: string
+            enum:
+              - openid
+        - name: state
+          in: query
+          required: false
+          description: state
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+                example: http://localhost:8080/callback
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorizeErrorType"
+        default:
+          description: Internal Server Error
+  /token:
+    post:
+      tags:
+        - OIDC
+      summary: Token Endpoint
+      description: |
+        Token Endpoint <br>
+        ref: https://openid-foundation-japan.github.io/rfc6749.ja.html#token-req <br>
+        ref: https://openid-foundation-japan.github.io/openid-connect-core-1_0.ja.html#TokenRequest <br>
+      operationId: token
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/TokenRequestSchema"
+      responses:
+        "200":
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+            Pragma:
+              schema:
+                type: string
+                example: no-cache
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponseSchema"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenErrorSchema"
+        default:
+          description: Internal Server Error
+  /userinfo:
+    get:
+      tags:
+        - OIDC
+      summary: UserInfo Endpoint
+      description: UserInfo Endpoint
+      operationId: userinfo
+      security:
+        - Bearer: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfoResponseSchema"
+        "401":
+          description: Unauthorized
+        default:
+          description: Internal Server Error
+    post:
+      tags:
+        - OIDC
+      summary: UserInfo Endpoint
+      description: UserInfo Endpoint
+      operationId: _userinfo
+      security:
+        - Bearer: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfoResponseSchema"
+        "401":
+          description: Unauthorized
+        default:
+          description: Internal Server Error
+  /certs:
+    get:
+      tags:
+        - OIDC
+      summary: JWK Set
+      description: JWK Set
+      operationId: jwks
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertsResponseSchema"
+        default:
+          description: Internal Server Error
+  /revoke:
+    post:
+      tags:
+        - OIDC
+      summary: Revocation Endpoint
+      description: Revocation Endpoint
+      operationId: revoke
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  example: xxxxxxxxxx
+                token_type_hint:
+                  type: string
+                  enum:
+                    - access_token
+                    - refresh_token
+                  example: refresh_token
+              required:
+                - token
+      responses:
+        "200":
+          description: OK
+        default:
+          description: Internal Server Error
+  /login:
+    get:
+      tags:
+        - IdP
+      summary: Login Veiw
+      description: Login View
+      operationId: loginView
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: id
+          schema:
+            type: string
+            example: xxxxxxxxxx
+      responses:
+        "200":
+          description: OK
+          content:
+            text/html:
+              schema:
+                type: string
+        default:
+          description: Internal Server Error
+    post:
+      tags:
+        - IdP
+      summary: Login
+      description: Login
+      operationId: login
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: xxxxxxxxxx
+                password:
+                  type: string
+                  example: xxxxxxxxxx
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+                example: http://localhost:8787/authorize?response_type=code&client_id=http://localhost:8080&redirect_uri=http://localhost:8080/callback&scope=openid&state=xxxxxxxxxx
+        default:
+          description: Internal Server Error
+  /callback:
+    get:
+      tags:
+        - IdP
+      summary: Callback
+      description: Callback
+      operationId: callback
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: id
+          schema:
+            type: string
+            example: xxxxxxxxxx
+      responses:
+        "302":
+          description: Found
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+                example: http://localhost:8080/callback
+        default:
+          description: Internal Server Error
+components:
+  securitySchemes:
+    Bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    OpenIDConfigurationResponseSchema:
+      type: object
+      description: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+      properties:
+        issuer:
+          type: string
+          description: http://localhost:8787
+          format: uri
+          example: http://localhost:8787
+        authorization_endpoint:
+          type: string
+          description: http://localhost:8787/authorize
+          format: uri
+          example: http://localhost:8787/authorize
+        token_endpoint:
+          type: string
+          description: http://localhost:8787/token
+          format: uri
+          example: http://localhost:8787/token
+        userinfo_endpoint:
+          type: string
+          description: http://localhost:8787/userinfo
+          format: uri
+          example: http://localhost:8787/userinfo
+        jwks_uri:
+          type: string
+          description: http://localhost:8787/certs
+          format: uri
+          example: http://localhost:8787/certs
+        revocation_endpoint:
+          type: string
+          description: http://localhost:8787/revoke
+          format: uri
+          example: http://localhost:8787/revoke
+        subject_types_supported:
+          type: array
+          items:
+            type: string
+          example:
+            - public
+        id_token_signing_alg_values_supported:
+          type: array
+          items:
+            type: string
+          example:
+            - RS256
+      required:
+        - issuer
+        - authorization_endpoint
+        - token_endpoint
+        - userinfo_endpoint
+        - jwks_uri
+        - revocation_endpoint
+        - subject_types_supported
+        - id_token_signing_alg_values_supported
+    AuthorizeErrorType:
+      type: string
+      enum:
+        - invalid_request
+        - unauthorized_client
+        - access_denied
+        - unsupported_response_type
+        - invalid_scope
+        - server_error
+        - temporarily_unavailable
+      example: invalid_request
+    UserInfoResponseSchema:
+      type: object
+      properties:
+        sub:
+          type: string
+          example: xxxxxxxxxx
+        email:
+          type: string
+          example: xxxxxxxxxx
+      required:
+        - sub
+        - email
+    TokenRequestSchema:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum:
+            - authorization_code
+            - refresh_token
+          description: grant_type
+          example: authorization_code
+        code:
+          type: string
+          description: needs when grant_type is authorization_code
+          example: xxxxxxxxxxxxxxx
+        redirect_uri:
+          type: string
+          description: neews when grant_type is authorization_code
+          format: uri
+          example: http://localhost:8080/rp/callback
+        client_id:
+          type: string
+          description: needs when grant_type is authorization_code
+          example: client_id
+        client_secret:
+          type: string
+          description: needs when grant_type is authorization_code
+          example: client_secret
+        client_assertion:
+          type: string
+          description: needs when grant_type is authorization_code. ref https://datatracker.ietf.org/doc/html/rfc7523#section-2.2
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+        refresh_token:
+          type: string
+          description: needs when grant_type is refresh_token
+          example: xxxxxxxx
+        scope:
+          type: string
+          description: optional
+          example: openid profile email
+      required:
+        - grant_type
+    TokenResponseSchema:
+      type: object
+      description: https://openid-foundation-japan.github.io/openid-connect-core-1_0.ja.html#TokenResponse
+      properties:
+        access_token:
+          type: string
+          description: access_token
+          example: access_token
+        token_type:
+          type: string
+          description: token_type
+          example: token_type
+        refresh_token:
+          type: string
+          description: refresh_token
+          example: refresh_token
+        expires_in:
+          type: integer
+          description: expires_in
+          example: 3600
+        id_token:
+          type: string
+          description: id_token
+          example: id_token
+      required:
+        - access_token
+        - token_type
+        - refresh_token
+        - expires_in
+        - id_token
+    TokenErrorSchema:
+      type: object
+      properties:
+        error:
+          $ref: "#/components/schemas/TokenErrorType"
+        error_description:
+          type: string
+        error_uri:
+          type: string
+      required:
+        - error
+    TokenErrorType:
+      type: string
+      enum:
+        - invalid_request
+        - invalid_client
+        - invalid_grant
+        - unauthorized_client
+        - unsupported_grant_type
+        - invalid_scope
+      example: invalid_request
+    JWKSet:
+      type: object
+      properties:
+        kid:
+          type: string
+          example: xxxxxxxxxx
+        kty:
+          type: string
+          example: RSA
+        use:
+          type: string
+          example: sig
+        alg:
+          type: string
+          example: RS256
+        n:
+          type: string
+          example: xxxxxxxxxx
+        e:
+          type: string
+          example: xxxxxxxxxx
+      required:
+        - kid
+        - kty
+        - use
+        - alg
+        - n
+        - e
+    CertsResponseSchema:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/JWKSet"
+      required:
+        - keys
